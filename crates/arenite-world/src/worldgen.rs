@@ -1,23 +1,23 @@
-use arenite_core::pos::{ChunkPos, CHUNK_SIZE};
-use arenite_core::rng::AreniteRng;
-use arenite_sim::SimWorld;
-use arenite_sim::chunk::ChunkData;
-use arenite_sim::material::{MaterialInstance, flags};
-use arenite_sim::physics_type::PhysicsType;
 use crate::biome::{Biome, BiomeId, BiomeMap};
 use crate::cave::{CaveCarver, CaveContext};
 use crate::feature::FeaturePlacer;
 use crate::height::HeightMap;
 use crate::noise_field::NoiseField;
 use crate::structure;
+use arenite_core::pos::{ChunkPos, CHUNK_SIZE};
+use arenite_core::rng::AreniteRng;
+use arenite_sim::chunk::ChunkData;
+use arenite_sim::material::{flags, MaterialInstance};
+use arenite_sim::physics_type::PhysicsType;
+use arenite_sim::SimWorld;
 
 /// Configuration for world generation.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct WorldGenConfig {
-    pub width:        i32,
-    pub height:       i32,
-    pub seed:         u64,
-    pub sea_level:    i32,
+    pub width: i32,
+    pub height: i32,
+    pub seed: u64,
+    pub sea_level: i32,
     /// Multiplier applied to cave carving thresholds.
     pub cave_density: f64,
 }
@@ -25,10 +25,10 @@ pub struct WorldGenConfig {
 impl Default for WorldGenConfig {
     fn default() -> Self {
         Self {
-            width:        4200,
-            height:       1200,
-            seed:         12345,
-            sea_level:    600,
+            width: 4200,
+            height: 1200,
+            seed: 12345,
+            sea_level: 600,
             cave_density: 1.0,
         }
     }
@@ -36,12 +36,21 @@ impl Default for WorldGenConfig {
 
 impl WorldGenConfig {
     pub fn small() -> Self {
-        Self { width: 2100, height: 600, ..Default::default() }
+        Self {
+            width: 2100,
+            height: 600,
+            ..Default::default()
+        }
     }
 
     /// Tiny world for tests and quick iteration.
     pub fn dev() -> Self {
-        Self { width: 600, height: 200, seed: fastrand::u64(..), ..Default::default() }
+        Self {
+            width: 600,
+            height: 200,
+            seed: fastrand::u64(..),
+            ..Default::default()
+        }
     }
 }
 
@@ -72,27 +81,29 @@ impl WorldGenerator {
         let cfg = &self.config;
         log::info!(
             "Generating world {}×{} seed={}",
-            cfg.width, cfg.height, cfg.seed
+            cfg.width,
+            cfg.height,
+            cfg.seed
         );
 
-        let noise  = NoiseField::new(cfg.seed);
+        let noise = NoiseField::new(cfg.seed);
         let biomes = BiomeMap::new(cfg.width, &noise);
 
         // Per-column biome ID array (used by structure placement for biome-correct trees).
-        let biome_ids: Vec<u8> = (0..cfg.width)
-            .map(|x| biomes.get(x).0)
-            .collect();
+        let biome_ids: Vec<u8> = (0..cfg.width).map(|x| biomes.get(x).0).collect();
 
         // Collect per-column height modifiers from biome data.
         let height_mods: Vec<f64> = (0..cfg.width)
             .map(|x| BiomeMap::get_biome_data(biomes.get(x)).height_mod)
             .collect();
 
-        let heights = HeightMap::generate(
-            cfg.width, cfg.height, &noise, &height_mods,
-        );
+        let heights = HeightMap::generate(cfg.width, cfg.height, &noise, &height_mods);
 
-        log::info!("Surface y range: {}..{}", heights.min_surface(), heights.max_surface());
+        log::info!(
+            "Surface y range: {}..{}",
+            heights.min_surface(),
+            heights.max_surface()
+        );
 
         // ── Base fill ──────────────────────────────────────────────────────
         let mut world = SimWorld::new(cfg.seed);
@@ -102,12 +113,12 @@ impl WorldGenerator {
         let carver = CaveCarver::default();
         log::info!("Carving caves…");
         let cave_ctx = CaveContext {
-            world_width:   cfg.width,
-            world_height:  cfg.height,
-            noise:         &noise,
+            world_width: cfg.width,
+            world_height: cfg.height,
+            noise: &noise,
             underground_y: heights.underground,
-            cavern_y:      heights.cavern,
-            cave_factor:   cfg.cave_density,
+            cavern_y: heights.cavern,
+            cave_factor: cfg.cave_density,
         };
         carver.carve_region(&mut world, 0, cfg.width, &heights.surface, &cave_ctx);
 
@@ -128,9 +139,7 @@ impl WorldGenerator {
         FeaturePlacer::place_clay(&mut world, cfg.width, &heights.surface, &mut rng);
 
         // ── Surface decorations (grass tufts, flowers) ────────────────────
-        FeaturePlacer::place_surface_decorations(
-            &mut world, cfg.width, &heights.surface, &mut rng,
-        );
+        FeaturePlacer::place_surface_decorations(&mut world, cfg.width, &heights.surface, &mut rng);
 
         // ── Surface structures and biome-aware trees ──────────────────────
         log::info!("Placing structures and trees…");
@@ -144,12 +153,7 @@ impl WorldGenerator {
 
         // ── Floating sky islands (Terraria sky islands / Starbound sky biome)
         log::info!("Placing floating islands…");
-        structure::place_floating_islands(
-            &mut world,
-            cfg.width,
-            cfg.height,
-            &mut rng,
-        );
+        structure::place_floating_islands(&mut world, cfg.width, cfg.height, &mut rng);
 
         // ── Cave mushrooms (Terraria mushroom biome) ──────────────────────
         structure::place_mushrooms(
@@ -181,14 +185,14 @@ impl WorldGenerator {
     /// Fill base terrain: solid below surface, air above.
     fn fill_world(
         &self,
-        world:   &mut SimWorld,
-        noise:   &NoiseField,
-        biomes:  &BiomeMap,
+        world: &mut SimWorld,
+        noise: &NoiseField,
+        biomes: &BiomeMap,
         heights: &HeightMap,
     ) {
         let cfg = &self.config;
 
-        let chunks_x = (cfg.width  as f64 / CHUNK_SIZE as f64).ceil() as i32;
+        let chunks_x = (cfg.width as f64 / CHUNK_SIZE as f64).ceil() as i32;
         let chunks_y = (cfg.height as f64 / CHUNK_SIZE as f64).ceil() as i32;
 
         for cy in 0..chunks_y {
@@ -202,9 +206,9 @@ impl WorldGenerator {
 
     fn fill_chunk(
         &self,
-        cp:      ChunkPos,
-        noise:   &NoiseField,
-        biomes:  &BiomeMap,
+        cp: ChunkPos,
+        noise: &NoiseField,
+        biomes: &BiomeMap,
         heights: &HeightMap,
     ) -> ChunkData {
         let cfg = &self.config;
@@ -216,11 +220,13 @@ impl WorldGenerator {
             let wy = oy + ly;
             for lx in 0..CHUNK_SIZE {
                 let wx = ox + lx;
-                if wx >= cfg.width || wy >= cfg.height { continue; }
+                if wx >= cfg.width || wy >= cfg.height {
+                    continue;
+                }
 
                 let biome_id = biomes.get(wx);
-                let biome    = BiomeMap::get_biome_data(biome_id);
-                let sy       = heights.surface_at(wx);
+                let biome = BiomeMap::get_biome_data(biome_id);
+                let sy = heights.surface_at(wx);
 
                 let mat = self.pixel_at(wx, wy, sy, biome, heights, noise);
                 data.set(lx, ly, mat);
@@ -231,7 +237,8 @@ impl WorldGenerator {
 
     fn pixel_at(
         &self,
-        wx: i32, wy: i32,
+        wx: i32,
+        wy: i32,
         surface_y: i32,
         biome: &Biome,
         heights: &HeightMap,
@@ -243,11 +250,11 @@ impl WorldGenerator {
         if wy < surface_y {
             if wy >= cfg.sea_level && biome.id == BiomeId::OCEAN {
                 return MaterialInstance {
-                    id:      0,
+                    id: 0,
                     physics: PhysicsType::Liquid,
-                    color:   arenite_core::Color::WATER,
-                    light:   [0.0; 3],
-                    data:    0,
+                    color: arenite_core::Color::WATER,
+                    light: [0.0; 3],
+                    data: 0,
                 };
             }
             return MaterialInstance::air();
@@ -268,26 +275,26 @@ impl WorldGenerator {
         // ── Underworld ────────────────────────────────────────────────────
         if wy > heights.underworld {
             return MaterialInstance {
-                id:      0,
+                id: 0,
                 physics: PhysicsType::Solid,
-                color:   arenite_core::Color::rgb(40, 20, 30),
-                light:   [0.02, 0.0, 0.0],  // faint ember glow
-                data:    0,
+                color: arenite_core::Color::rgb(40, 20, 30),
+                light: [0.02, 0.0, 0.0], // faint ember glow
+                data: 0,
             };
         }
 
         // ── Stone fill — slight noise variation for natural look ──────────
-        let nx  = wx as f64 / cfg.width  as f64 * 20.0;
-        let ny  = wy as f64 / cfg.height as f64 * 20.0;
+        let nx = wx as f64 / cfg.width as f64 * 20.0;
+        let ny = wy as f64 / cfg.height as f64 * 20.0;
         let jit = (noise.feature(nx, ny) * 15.0) as i16;
-        let v   = (128_i16 + jit).clamp(80, 180) as u8;
+        let v = (128_i16 + jit).clamp(80, 180) as u8;
 
         MaterialInstance {
-            id:      0,
+            id: 0,
             physics: PhysicsType::Solid,
-            color:   arenite_core::Color::rgb(v, v, v),
-            light:   [0.0; 3],
-            data:    0,
+            color: arenite_core::Color::rgb(v, v, v),
+            light: [0.0; 3],
+            data: 0,
         }
     }
 
@@ -297,32 +304,32 @@ impl WorldGenerator {
     fn surface_pixel(&self, biome: &Biome) -> MaterialInstance {
         match biome.id {
             BiomeId::TUNDRA => MaterialInstance {
-                id:      0,
-                physics: PhysicsType::Sand,  // Ice slides like sand
-                color:   arenite_core::Color::ICE,
-                light:   [0.0; 3],
-                data:    0,
+                id: 0,
+                physics: PhysicsType::Sand, // Ice slides like sand
+                color: arenite_core::Color::ICE,
+                light: [0.0; 3],
+                data: 0,
             },
             BiomeId::DESERT | BiomeId::OCEAN => MaterialInstance {
-                id:      0,
+                id: 0,
                 physics: PhysicsType::Sand,
-                color:   arenite_core::Color::SAND,
-                light:   [0.0; 3],
-                data:    0,
+                color: arenite_core::Color::SAND,
+                light: [0.0; 3],
+                data: 0,
             },
             BiomeId::PLAINS | BiomeId::JUNGLE => MaterialInstance {
-                id:      0,
+                id: 0,
                 physics: PhysicsType::Solid,
-                color:   arenite_core::Color::GRASS,
-                light:   [0.0; 3],
-                data:    flags::FLAMMABLE,  // grass burns (T-035)
+                color: arenite_core::Color::GRASS,
+                light: [0.0; 3],
+                data: flags::FLAMMABLE, // grass burns (T-035)
             },
             _ => MaterialInstance {
-                id:      0,
+                id: 0,
                 physics: PhysicsType::Solid,
-                color:   arenite_core::Color::STONE,
-                light:   [0.0; 3],
-                data:    0,
+                color: arenite_core::Color::STONE,
+                light: [0.0; 3],
+                data: 0,
             },
         }
     }
@@ -334,13 +341,13 @@ impl WorldGenerator {
         let (color, data) = match biome.id {
             BiomeId::JUNGLE => (arenite_core::Color::MUD, 0u16),
             BiomeId::TUNDRA => (arenite_core::Color::rgb(110, 100, 130), 0), // frozen soil
-            _               => (arenite_core::Color::DIRT, 0),
+            _ => (arenite_core::Color::DIRT, 0),
         };
         MaterialInstance {
-            id:      0,
+            id: 0,
             physics: PhysicsType::Solid,
             color,
-            light:   [0.0; 3],
+            light: [0.0; 3],
             data,
         }
     }

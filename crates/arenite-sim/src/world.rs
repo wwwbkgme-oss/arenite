@@ -1,17 +1,17 @@
-use std::cell::UnsafeCell;
-use ahash::AHashMap;
-use arenite_core::pos::{ChunkPos, TilePos, CHUNK_SIZE};
 use crate::chunk::ChunkData;
 use crate::material::MaterialInstance;
 use crate::particle::Particle;
 use crate::simulator::{SimContext, Simulator};
+use ahash::AHashMap;
+use arenite_core::pos::{ChunkPos, TilePos, CHUNK_SIZE};
+use std::cell::UnsafeCell;
 
 /// Radius of chunks kept active around the player (fully simulated).
-pub const ACTIVE_RADIUS:  i32 = 4;
+pub const ACTIVE_RADIUS: i32 = 4;
 /// Radius of loaded-but-sleeping chunks (kept in memory, not simulated).
-pub const LOAD_RADIUS:    i32 = 8;
+pub const LOAD_RADIUS: i32 = 8;
 /// Chunks farther than this are evicted from memory entirely (T-047).
-pub const UNLOAD_RADIUS:  i32 = 12;
+pub const UNLOAD_RADIUS: i32 = 12;
 
 /// The simulation world: owns all chunks and drives tick-by-tick updates.
 ///
@@ -35,19 +35,19 @@ pub struct SimWorld {
 
 #[derive(Clone, Debug)]
 pub struct ChunkMeta {
-    pub pos:       ChunkPos,
-    pub loaded:    bool,
-    pub active:    bool,
+    pub pos: ChunkPos,
+    pub loaded: bool,
+    pub active: bool,
     pub last_tick: u64,
 }
 
 impl SimWorld {
     pub fn new(seed: u64) -> Self {
         Self {
-            chunks:       AHashMap::default(),
-            meta:         AHashMap::default(),
-            particles:    Vec::new(),
-            tick:         0,
+            chunks: AHashMap::default(),
+            meta: AHashMap::default(),
+            particles: Vec::new(),
+            tick: 0,
             seed,
             player_chunk: ChunkPos::new(0, 0),
         }
@@ -62,12 +62,15 @@ impl SimWorld {
     /// Insert a freshly-generated chunk into the world.
     pub fn insert_chunk(&mut self, pos: ChunkPos, data: ChunkData) {
         self.chunks.insert(pos, Box::new(UnsafeCell::new(data)));
-        self.meta.insert(pos, ChunkMeta {
+        self.meta.insert(
             pos,
-            loaded:    true,
-            active:    true,
-            last_tick: self.tick,
-        });
+            ChunkMeta {
+                pos,
+                loaded: true,
+                active: true,
+                last_tick: self.tick,
+            },
+        );
     }
 
     pub fn remove_chunk(&mut self, pos: ChunkPos) {
@@ -84,7 +87,9 @@ impl SimWorld {
             meta.loaded = dist <= LOAD_RADIUS;
         }
         // T-047: Evict chunks beyond UNLOAD_RADIUS.
-        let evict: Vec<ChunkPos> = self.meta.iter()
+        let evict: Vec<ChunkPos> = self
+            .meta
+            .iter()
             .filter(|(_, m)| m.pos.manhattan_distance(player_chunk) > UNLOAD_RADIUS)
             .map(|(pos, _)| *pos)
             .collect();
@@ -141,7 +146,9 @@ impl SimWorld {
         // Bucket active chunks into 4 independent phases.
         let mut phases: [Vec<ChunkPos>; 4] = Default::default();
         for m in self.meta.values() {
-            if !m.active || !m.loaded { continue; }
+            if !m.active || !m.loaded {
+                continue;
+            }
             let phase = (m.pos.x.rem_euclid(2) + m.pos.y.rem_euclid(2) * 2) as usize;
             phases[phase].push(m.pos);
         }
@@ -151,7 +158,9 @@ impl SimWorld {
             for &cp in phase {
                 // T-048: skip fully-static chunks (no dynamic pixels).
                 if let Some(cell) = self.chunks.get(&cp) {
-                    if unsafe { (*cell.get()).dynamic_count == 0 } { continue; }
+                    if unsafe { (*cell.get()).dynamic_count == 0 } {
+                        continue;
+                    }
                 }
                 let mut spawned = self.tick_one_chunk(cp, t);
                 new_particles.append(&mut spawned);
@@ -162,7 +171,9 @@ impl SimWorld {
         // Tick free particles.
         let chunks = &self.chunks;
         self.particles.retain_mut(|p| {
-            if !p.tick() { return false; }
+            if !p.tick() {
+                return false;
+            }
             // Try to re-embed settled particles into the world.
             if fastrand::u8(..) < 10 {
                 let tp = TilePos::new(p.tile_x(), p.tile_y());
@@ -183,9 +194,15 @@ impl SimWorld {
         // Build the 3×3 neighbourhood.
         let neighbours: [Option<&UnsafeCell<ChunkData>>; 9] = {
             let offsets: [(i32, i32); 9] = [
-                (-1,-1),(0,-1),(1,-1),
-                (-1, 0),(0, 0),(1, 0),
-                (-1, 1),(0, 1),(1, 1),
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (-1, 0),
+                (0, 0),
+                (1, 0),
+                (-1, 1),
+                (0, 1),
+                (1, 1),
             ];
             let mut arr: [Option<&UnsafeCell<ChunkData>>; 9] = [None; 9];
             for (i, &(dx, dy)) in offsets.iter().enumerate() {

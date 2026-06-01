@@ -1,5 +1,5 @@
-use arenite_core::pos::{CHUNK_SIZE, CHUNK_AREA};
 use crate::material::MaterialInstance;
+use arenite_core::pos::{CHUNK_AREA, CHUNK_SIZE};
 
 /// Tracks the smallest rectangle enclosing all modified pixels this tick.
 /// Used to avoid redrawing unchanged GPU textures.
@@ -33,7 +33,9 @@ impl DirtyRect {
     }
 
     pub fn merge(&mut self, other: DirtyRect) {
-        if !other.dirty { return; }
+        if !other.dirty {
+            return;
+        }
         self.min_x = self.min_x.min(other.min_x);
         self.min_y = self.min_y.min(other.min_y);
         self.max_x = self.max_x.max(other.max_x);
@@ -48,9 +50,9 @@ pub struct ChunkData {
     /// Flat array of pixel instances, row-major: index = y * CHUNK_SIZE + x
     pub pixels: Vec<MaterialInstance>,
     /// Mirrors pixels; updated by the lighting pass.
-    pub light:  Vec<[f32; 3]>,
+    pub light: Vec<[f32; 3]>,
     /// Dirty rect since last GPU upload.
-    pub dirty:  DirtyRect,
+    pub dirty: DirtyRect,
     /// Count of pixels whose `PhysicsType::is_dynamic()` returns true (T-048).
     /// When this is 0, the chunk is fully static and simulation can be skipped.
     pub dynamic_count: u32,
@@ -59,9 +61,9 @@ pub struct ChunkData {
 impl ChunkData {
     pub fn new_empty() -> Self {
         Self {
-            pixels:        vec![MaterialInstance::air(); CHUNK_AREA],
-            light:         vec![[0.0_f32; 3]; CHUNK_AREA],
-            dirty:         DirtyRect::clean(),
+            pixels: vec![MaterialInstance::air(); CHUNK_AREA],
+            light: vec![[0.0_f32; 3]; CHUNK_AREA],
+            dirty: DirtyRect::clean(),
             dynamic_count: 0,
         }
     }
@@ -85,11 +87,11 @@ impl ChunkData {
 
     #[inline]
     pub fn set(&mut self, x: i32, y: i32, mat: MaterialInstance) {
-        let idx     = Self::idx(x, y);
-        let old     = self.pixels[idx];
+        let idx = Self::idx(x, y);
+        let old = self.pixels[idx];
         // Maintain dynamic_count incrementally (T-048).
         let was_dyn = old.is_dynamic();
-        let is_dyn  = mat.is_dynamic();
+        let is_dyn = mat.is_dynamic();
         if was_dyn && !is_dyn {
             self.dynamic_count = self.dynamic_count.saturating_sub(1);
         } else if !was_dyn && is_dyn {
@@ -117,7 +119,7 @@ impl ChunkData {
 
 /// A simulation chunk: wraps `ChunkData` with position metadata.
 pub struct Chunk {
-    pub pos:  arenite_core::pos::ChunkPos,
+    pub pos: arenite_core::pos::ChunkPos,
     pub data: ChunkData,
     /// Has this chunk been loaded/generated?
     pub loaded: bool,
@@ -131,9 +133,9 @@ impl Chunk {
     pub fn new(pos: arenite_core::pos::ChunkPos) -> Self {
         Self {
             pos,
-            data:      ChunkData::new_empty(),
-            loaded:    false,
-            active:    true,
+            data: ChunkData::new_empty(),
+            loaded: false,
+            active: true,
             last_tick: 0,
         }
     }

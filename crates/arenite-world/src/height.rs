@@ -19,9 +19,9 @@ pub struct HeightMap {
 
 impl HeightMap {
     pub fn generate(
-        world_width:  i32,
+        world_width: i32,
         world_height: i32,
-        noise:        &NoiseField,
+        noise: &NoiseField,
         biome_height_mods: &[f64],
     ) -> Self {
         let mid = world_height as f64 * 0.35; // nominal surface y
@@ -40,10 +40,7 @@ impl HeightMap {
             let base = noise.terrain_coarse(nx4 * 0.5, ny4 * 0.5);
             let detail = noise.terrain_fine(nx4, ny4) * 0.35;
 
-            let biome_mod = biome_height_mods
-                .get(x as usize)
-                .copied()
-                .unwrap_or(0.0);
+            let biome_mod = biome_height_mods.get(x as usize).copied().unwrap_or(0.0);
 
             let y = mid + (base + detail + biome_mod) * amplitude;
             surface.push(y.round() as i32);
@@ -59,10 +56,15 @@ impl HeightMap {
         }
 
         let underground = (world_height as f64 * super::UNDERGROUND_DEPTH) as i32;
-        let cavern      = (world_height as f64 * super::CAVERN_DEPTH) as i32;
-        let underworld  = world_height - super::UNDERWORLD_START;
+        let cavern = (world_height as f64 * super::CAVERN_DEPTH) as i32;
+        let underworld = world_height - super::UNDERWORLD_START;
 
-        Self { surface, underground, cavern, underworld }
+        Self {
+            surface,
+            underground,
+            cavern,
+            underworld,
+        }
     }
 
     pub fn surface_at(&self, x: i32) -> i32 {

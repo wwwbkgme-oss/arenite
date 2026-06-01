@@ -1,4 +1,4 @@
-use arenite_core::pos::{TilePos, ChunkPos, CHUNK_SIZE};
+use arenite_core::pos::{ChunkPos, TilePos, CHUNK_SIZE};
 use arenite_core::rng::AreniteRng;
 
 #[test]
@@ -24,14 +24,19 @@ fn chunk_origin_tile() {
 fn tile_local_index_corners() {
     assert_eq!(TilePos::new(0, 0).local_index(), 0);
     let last = (CHUNK_SIZE * CHUNK_SIZE - 1) as usize;
-    assert_eq!(TilePos::new(CHUNK_SIZE - 1, CHUNK_SIZE - 1).local_index(), last);
+    assert_eq!(
+        TilePos::new(CHUNK_SIZE - 1, CHUNK_SIZE - 1).local_index(),
+        last
+    );
 }
 
 #[test]
 fn rng_deterministic() {
     let mut a = AreniteRng::from_seed(99);
     let mut b = AreniteRng::from_seed(99);
-    for _ in 0..200 { assert_eq!(a.u64(), b.u64()); }
+    for _ in 0..200 {
+        assert_eq!(a.u64(), b.u64());
+    }
 }
 
 #[test]
@@ -39,7 +44,9 @@ fn rng_coords_differ() {
     let a = AreniteRng::from_coords(0, 0, 0).u64();
     let b = AreniteRng::from_coords(1, 0, 0).u64();
     let c = AreniteRng::from_coords(0, 1, 0).u64();
-    assert_ne!(a, b); assert_ne!(a, c); assert_ne!(b, c);
+    assert_ne!(a, b);
+    assert_ne!(a, c);
+    assert_ne!(b, c);
 }
 
 #[test]

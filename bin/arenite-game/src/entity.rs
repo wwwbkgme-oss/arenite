@@ -14,7 +14,7 @@
 // re-uploads.  A proper sprite sheet renderer is planned in a future task.
 
 use arenite_core::pos::TilePos;
-use arenite_sim::{SimWorld, material::MaterialInstance, physics_type::PhysicsType};
+use arenite_sim::{material::MaterialInstance, physics_type::PhysicsType, SimWorld};
 
 // ── Entity trait ─────────────────────────────────────────────────────────────
 
@@ -39,7 +39,9 @@ pub trait Entity: Send {
     fn velocity(&self) -> (f32, f32);
     fn health(&self) -> i32;
     fn max_health(&self) -> i32;
-    fn is_alive(&self) -> bool { self.health() > 0 }
+    fn is_alive(&self) -> bool {
+        self.health() > 0
+    }
 
     /// Width × height of the AABB hitbox in pixels.
     fn hitbox(&self) -> (f32, f32);
@@ -58,13 +60,15 @@ pub trait Entity: Send {
 
     /// True if the entity overlaps the given world-pixel rectangle.
     fn overlaps(&self, rx: f32, ry: f32, rw: f32, rh: f32) -> bool {
-        let (ex, ey)     = self.position();
-        let (ew, eh)     = self.hitbox();
+        let (ex, ey) = self.position();
+        let (ew, eh) = self.hitbox();
         ex < rx + rw && ex + ew > rx && ey < ry + rh && ey + eh > ry
     }
 
     /// Return contact-damage dealt to the player per tick (0 = harmless).
-    fn contact_damage(&self) -> i32 { 0 }
+    fn contact_damage(&self) -> i32 {
+        0
+    }
 }
 
 // ── Physics helpers ───────────────────────────────────────────────────────────
@@ -72,14 +76,14 @@ pub trait Entity: Send {
 /// Check whether an AABB at (x, y, w, h) overlaps a solid/sand pixel.
 fn collide_at(sim: &SimWorld, x: f32, y: f32, w: f32, h: f32) -> bool {
     let check_corners = [
-        (x,         y),
+        (x, y),
         (x + w - 1.0, y),
-        (x,         y + h - 1.0),
+        (x, y + h - 1.0),
         (x + w - 1.0, y + h - 1.0),
     ];
     for (cx, cy) in check_corners {
         let tp = TilePos::new(cx as i32, cy as i32);
-        let p  = sim.get_pixel(tp);
+        let p = sim.get_pixel(tp);
         if matches!(p.physics, PhysicsType::Solid | PhysicsType::Sand) {
             return true;
         }
@@ -89,9 +93,7 @@ fn collide_at(sim: &SimWorld, x: f32, y: f32, w: f32, h: f32) -> bool {
 
 /// Integrate entity position against the pixel world.
 /// Returns (new_x, new_y, on_ground).
-fn integrate(sim: &SimWorld, x: f32, y: f32, vx: f32, vy: f32, w: f32, h: f32)
-    -> (f32, f32, bool)
-{
+fn integrate(sim: &SimWorld, x: f32, y: f32, vx: f32, vy: f32, w: f32, h: f32) -> (f32, f32, bool) {
     // X axis
     let nx = x + vx;
     let actual_x = if collide_at(sim, nx, y, w, h) { x } else { nx };
@@ -112,14 +114,16 @@ fn integrate(sim: &SimWorld, x: f32, y: f32, vx: f32, vy: f32, w: f32, h: f32)
 /// A simple green slime that patrols left/right and jumps when blocked.
 /// Deals contact damage.  Inspired by Terraria's Green Slime.
 pub struct SlimeEnemy {
-    pub x: f32, pub y: f32,
-    pub vx: f32, pub vy: f32,
+    pub x: f32,
+    pub y: f32,
+    pub vx: f32,
+    pub vy: f32,
     pub hp: i32,
-    on_ground:        bool,
-    dir:              f32,   // +1 or -1
-    dir_timer:        u32,   // ticks until direction reversal
-    jump_cooldown:    u32,
-    aggro_range:      f32,   // pixels — chase player within this range
+    on_ground: bool,
+    dir: f32,       // +1 or -1
+    dir_timer: u32, // ticks until direction reversal
+    jump_cooldown: u32,
+    aggro_range: f32, // pixels — chase player within this range
 }
 
 impl SlimeEnemy {
@@ -133,27 +137,45 @@ impl SlimeEnemy {
 
     pub fn new(x: f32, y: f32) -> Self {
         Self {
-            x, y,
-            vx: 0.0, vy: 0.0,
+            x,
+            y,
+            vx: 0.0,
+            vy: 0.0,
             hp: Self::HP,
-            on_ground:     false,
-            dir:           1.0,
-            dir_timer:     fastrand::u32(60..180),
+            on_ground: false,
+            dir: 1.0,
+            dir_timer: fastrand::u32(60..180),
             jump_cooldown: 0,
-            aggro_range:   120.0,
+            aggro_range: 120.0,
         }
     }
 }
 
 impl Entity for SlimeEnemy {
-    fn kind(&self) -> EntityKind { EntityKind::Slime }
-    fn position(&self) -> (f32, f32) { (self.x, self.y) }
-    fn velocity(&self) -> (f32, f32) { (self.vx, self.vy) }
-    fn health(&self) -> i32 { self.hp }
-    fn max_health(&self) -> i32 { Self::HP }
-    fn hitbox(&self) -> (f32, f32) { (Self::W, Self::H) }
-    fn contact_damage(&self) -> i32 { 5 }
-    fn take_damage(&mut self, amount: i32) { self.hp -= amount; }
+    fn kind(&self) -> EntityKind {
+        EntityKind::Slime
+    }
+    fn position(&self) -> (f32, f32) {
+        (self.x, self.y)
+    }
+    fn velocity(&self) -> (f32, f32) {
+        (self.vx, self.vy)
+    }
+    fn health(&self) -> i32 {
+        self.hp
+    }
+    fn max_health(&self) -> i32 {
+        Self::HP
+    }
+    fn hitbox(&self) -> (f32, f32) {
+        (Self::W, Self::H)
+    }
+    fn contact_damage(&self) -> i32 {
+        5
+    }
+    fn take_damage(&mut self, amount: i32) {
+        self.hp -= amount;
+    }
     fn pixel_color(&self) -> arenite_core::Color {
         // Colour shifts from green → red as health drops.
         let ratio = (self.hp as f32 / Self::HP as f32).clamp(0.0, 1.0);
@@ -203,19 +225,24 @@ impl Entity for SlimeEnemy {
                 self.jump_cooldown = 40;
             }
         }
-        if self.jump_cooldown > 0 { self.jump_cooldown -= 1; }
+        if self.jump_cooldown > 0 {
+            self.jump_cooldown -= 1;
+        }
 
         // ── Physics ───────────────────────────────────────────────────────
         self.vy = (self.vy + Self::GRAVITY).min(Self::MAX_FALL);
 
-        let (nx, ny, og) = integrate(sim, self.x, self.y,
-                                     self.vx, self.vy, Self::W, Self::H);
+        let (nx, ny, og) = integrate(sim, self.x, self.y, self.vx, self.vy, Self::W, Self::H);
         self.x = nx;
         self.y = ny;
         self.on_ground = og;
-        if og { self.vy = 0.0; }
+        if og {
+            self.vy = 0.0;
+        }
         // Horizontal friction.
-        if self.on_ground { self.vx *= 0.8; }
+        if self.on_ground {
+            self.vx *= 0.8;
+        }
     }
 }
 
@@ -224,10 +251,12 @@ impl Entity for SlimeEnemy {
 /// A cave bat that flutters toward the player in a wavy pattern.
 /// Inspired by Terraria's Cave Bat.
 pub struct BatEnemy {
-    pub x: f32, pub y: f32,
-    pub vx: f32, pub vy: f32,
+    pub x: f32,
+    pub y: f32,
+    pub vx: f32,
+    pub vy: f32,
     pub hp: i32,
-    phase: f32,  // for sinusoidal flight
+    phase: f32, // for sinusoidal flight
 }
 
 impl BatEnemy {
@@ -237,20 +266,42 @@ impl BatEnemy {
     const HP: i32 = 20;
 
     pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y, vx: 0.0, vy: 0.0, hp: Self::HP,
-               phase: fastrand::f32() * std::f32::consts::TAU }
+        Self {
+            x,
+            y,
+            vx: 0.0,
+            vy: 0.0,
+            hp: Self::HP,
+            phase: fastrand::f32() * std::f32::consts::TAU,
+        }
     }
 }
 
 impl Entity for BatEnemy {
-    fn kind(&self) -> EntityKind { EntityKind::Bat }
-    fn position(&self) -> (f32, f32) { (self.x, self.y) }
-    fn velocity(&self) -> (f32, f32) { (self.vx, self.vy) }
-    fn health(&self) -> i32 { self.hp }
-    fn max_health(&self) -> i32 { Self::HP }
-    fn hitbox(&self) -> (f32, f32) { (Self::W, Self::H) }
-    fn contact_damage(&self) -> i32 { 3 }
-    fn take_damage(&mut self, amount: i32) { self.hp -= amount; }
+    fn kind(&self) -> EntityKind {
+        EntityKind::Bat
+    }
+    fn position(&self) -> (f32, f32) {
+        (self.x, self.y)
+    }
+    fn velocity(&self) -> (f32, f32) {
+        (self.vx, self.vy)
+    }
+    fn health(&self) -> i32 {
+        self.hp
+    }
+    fn max_health(&self) -> i32 {
+        Self::HP
+    }
+    fn hitbox(&self) -> (f32, f32) {
+        (Self::W, Self::H)
+    }
+    fn contact_damage(&self) -> i32 {
+        3
+    }
+    fn take_damage(&mut self, amount: i32) {
+        self.hp -= amount;
+    }
     fn pixel_color(&self) -> arenite_core::Color {
         arenite_core::Color::new(60, 20, 80, 200)
     }
@@ -277,7 +328,9 @@ pub struct EntityManager {
 
 impl EntityManager {
     pub fn new() -> Self {
-        Self { entities: Vec::new() }
+        Self {
+            entities: Vec::new(),
+        }
     }
 
     pub fn spawn(&mut self, entity: Box<dyn Entity>) {
@@ -288,7 +341,7 @@ impl EntityManager {
     /// Returns the total contact damage dealt to the player this tick.
     pub fn update(
         &mut self,
-        sim:      &SimWorld,
+        sim: &SimWorld,
         player_x: f32,
         player_y: f32,
         player_w: f32,
@@ -325,11 +378,11 @@ impl EntityManager {
             // Only stamp into air — don't overwrite terrain.
             if sim.get_pixel(tp).is_air() {
                 let pixel = MaterialInstance {
-                    id:      0,
+                    id: 0,
                     physics: PhysicsType::Object,
-                    color:   e.pixel_color(),
-                    light:   [0.0; 3],
-                    data:    0,
+                    color: e.pixel_color(),
+                    light: [0.0; 3],
+                    data: 0,
                 };
                 sim.set_pixel(tp, pixel);
             }
@@ -345,28 +398,27 @@ impl EntityManager {
             let cx = (x + w * 0.5) as i32;
             let cy = (y + h * 0.5) as i32;
             let tp = TilePos::new(cx, cy);
-            let p  = sim.get_pixel(tp);
+            let p = sim.get_pixel(tp);
             if p.physics == PhysicsType::Object {
                 sim.set_pixel(tp, MaterialInstance::air());
             }
         }
     }
 
-    pub fn len(&self)     -> usize { self.entities.len() }
-    pub fn is_empty(&self) -> bool { self.entities.is_empty() }
+    pub fn len(&self) -> usize {
+        self.entities.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entities.is_empty()
+    }
 
     /// Spawn a batch of slimes scattered around a centre point.
-    pub fn spawn_slimes_near(
-        &mut self,
-        cx: f32, cy: f32,
-        count: usize,
-        radius: f32,
-    ) {
+    pub fn spawn_slimes_near(&mut self, cx: f32, cy: f32, count: usize, radius: f32) {
         for _ in 0..count {
-            let angle  = fastrand::f32() * std::f32::consts::TAU;
-            let r      = fastrand::f32() * radius;
-            let sx     = cx + angle.cos() * r;
-            let sy     = cy + angle.sin() * r;
+            let angle = fastrand::f32() * std::f32::consts::TAU;
+            let r = fastrand::f32() * radius;
+            let sx = cx + angle.cos() * r;
+            let sy = cy + angle.sin() * r;
             self.spawn(Box::new(SlimeEnemy::new(sx, sy)));
         }
     }
@@ -375,7 +427,7 @@ impl EntityManager {
     pub fn spawn_bats_near(&mut self, cx: f32, cy: f32, count: usize, radius: f32) {
         for _ in 0..count {
             let angle = fastrand::f32() * std::f32::consts::TAU;
-            let r     = fastrand::f32() * radius;
+            let r = fastrand::f32() * radius;
             self.spawn(Box::new(BatEnemy::new(
                 cx + angle.cos() * r,
                 cy + angle.sin() * r,
@@ -385,5 +437,7 @@ impl EntityManager {
 }
 
 impl Default for EntityManager {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

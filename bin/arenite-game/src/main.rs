@@ -22,28 +22,29 @@ use winit::{
     window::{Window, WindowAttributes, WindowId},
 };
 
+use arenite_core::items::{default_item_registry, ItemRegistry, PlayerInventory};
 use arenite_core::pos::{TilePos, WorldPos};
-use entity::EntityManager;
-use arenite_core::items::{PlayerInventory, default_item_registry, ItemRegistry};
+use arenite_core::Color;
 use arenite_physics::PhysicsWorld;
 use arenite_render::AreniteRenderer;
 use arenite_sim::{
-    SimWorld, save_world, load_world,
-    material::{MaterialInstance, MaterialRegistry, make_instance, default_material_registry},
+    load_world,
+    material::{default_material_registry, make_instance, MaterialInstance, MaterialRegistry},
     physics_type::PhysicsType,
+    save_world, SimWorld,
 };
-use arenite_world::{WorldGenerator, worldgen::WorldGenConfig, BiomeMap, NoiseField};
-use arenite_core::Color;
+use arenite_world::{worldgen::WorldGenConfig, BiomeMap, NoiseField, WorldGenerator};
+use entity::EntityManager;
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, serde::Deserialize)]
 struct GameConfig {
-    world_width:  i32,
+    world_width: i32,
     world_height: i32,
-    world_seed:   u64,
+    world_seed: u64,
     #[allow(dead_code)]
-    player_name:  String,
+    player_name: String,
     #[serde(default)]
     #[allow(dead_code)]
     server: Option<String>,
@@ -53,11 +54,11 @@ impl Default for GameConfig {
     fn default() -> Self {
         Self {
             // T-017: small default — generates in < 0.5 s; set larger in arenite.toml
-            world_width:  600,
+            world_width: 600,
             world_height: 200,
-            world_seed:   fastrand::u64(..),
-            player_name:  "Player".into(),
-            server:       None,
+            world_seed: fastrand::u64(..),
+            player_name: "Player".into(),
+            server: None,
         }
     }
 }
@@ -85,31 +86,48 @@ fn srgb_to_linear(v: u8) -> f32 {
 // Used only when the active hotbar item has no material_key (e.g. weapon/tool).
 
 const PALETTE: &[(PhysicsType, Color, &str)] = &[
-    (PhysicsType::Sand,   Color::SAND,                        "Sand"),
-    (PhysicsType::Liquid, Color::WATER,                       "Water"),
-    (PhysicsType::Solid,  Color::STONE,                       "Stone"),
-    (PhysicsType::Solid,  Color::DIRT,                        "Dirt"),
-    (PhysicsType::Solid,  Color::GRASS,                       "Grass"),
-    (PhysicsType::Sand,   Color::SNOW,                        "Snow"),
-    (PhysicsType::Gas,    Color { r:80, g:80, b:80, a:160 },  "Smoke"),
-    (PhysicsType::Liquid, Color::LAVA,                        "Lava"),
+    (PhysicsType::Sand, Color::SAND, "Sand"),
+    (PhysicsType::Liquid, Color::WATER, "Water"),
+    (PhysicsType::Solid, Color::STONE, "Stone"),
+    (PhysicsType::Solid, Color::DIRT, "Dirt"),
+    (PhysicsType::Solid, Color::GRASS, "Grass"),
+    (PhysicsType::Sand, Color::SNOW, "Snow"),
+    (
+        PhysicsType::Gas,
+        Color {
+            r: 80,
+            g: 80,
+            b: 80,
+            a: 160,
+        },
+        "Smoke",
+    ),
+    (PhysicsType::Liquid, Color::LAVA, "Lava"),
 ];
 
 fn palette_mat(slot: usize) -> MaterialInstance {
     let (physics, color, _) = PALETTE[slot % PALETTE.len()];
-    MaterialInstance { id: slot as u16, physics, color, light: [0.0; 3], data: 0 }
+    MaterialInstance {
+        id: slot as u16,
+        physics,
+        color,
+        light: [0.0; 3],
+        data: 0,
+    }
 }
 
 // ── Player ────────────────────────────────────────────────────────────────────
 
 struct Player {
-    x: f32, y: f32,
-    vx: f32, vy: f32,
-    on_ground:    bool,
+    x: f32,
+    y: f32,
+    vx: f32,
+    vy: f32,
+    on_ground: bool,
     selected_mat: usize,
     brush_radius: i32,
     /// Current hit-points (T-073 HP system).
-    hp:     i32,
+    hp: i32,
     max_hp: i32,
     /// Invincibility frames after taking damage.
     iframes: u32,
@@ -124,9 +142,16 @@ impl Player {
 impl Player {
     fn new(x: f32, y: f32) -> Self {
         Self {
-            x, y, vx: 0.0, vy: 0.0, on_ground: false,
-            selected_mat: 0, brush_radius: 3,
-            hp: Self::MAX_HP, max_hp: Self::MAX_HP, iframes: 0,
+            x,
+            y,
+            vx: 0.0,
+            vy: 0.0,
+            on_ground: false,
+            selected_mat: 0,
+            brush_radius: 3,
+            hp: Self::MAX_HP,
+            max_hp: Self::MAX_HP,
+            iframes: 0,
         }
     }
 
@@ -134,7 +159,7 @@ impl Player {
         for dy in &[-7_f32, 7.0] {
             for dx in &[-4_f32, 0.0, 4.0] {
                 let tp = TilePos::new((x + dx) as i32, (y + dy) as i32);
-                let p  = sim.get_pixel(tp);
+                let p = sim.get_pixel(tp);
                 if matches!(p.physics, PhysicsType::Solid | PhysicsType::Sand) {
                     return true;
                 }
@@ -144,14 +169,18 @@ impl Player {
     }
 
     fn tick(&mut self, sim: &SimWorld, left: bool, right: bool, jump: bool) {
-        const SPEED:      f32 = 2.5;
+        const SPEED: f32 = 2.5;
         const JUMP_FORCE: f32 = -9.0;
-        const GRAVITY:    f32 = 0.45;
-        const FRICTION:   f32 = 0.78;
-        const MAX_FALL:   f32 = 14.0;
+        const GRAVITY: f32 = 0.45;
+        const FRICTION: f32 = 0.78;
+        const MAX_FALL: f32 = 14.0;
 
-        if left  { self.vx -= SPEED; }
-        if right { self.vx += SPEED; }
+        if left {
+            self.vx -= SPEED;
+        }
+        if right {
+            self.vx += SPEED;
+        }
         if jump && self.on_ground {
             self.vy = JUMP_FORCE;
             self.on_ground = false;
@@ -161,14 +190,20 @@ impl Player {
         self.vx *= FRICTION;
 
         let nx = self.x + self.vx;
-        if !self.collide_at(sim, nx, self.y) { self.x = nx; } else { self.vx = 0.0; }
+        if !self.collide_at(sim, nx, self.y) {
+            self.x = nx;
+        } else {
+            self.vx = 0.0;
+        }
 
         let ny = self.y + self.vy;
         if !self.collide_at(sim, self.x, ny) {
             self.y = ny;
             self.on_ground = false;
         } else {
-            if self.vy > 0.0 { self.on_ground = true; }
+            if self.vy > 0.0 {
+                self.on_ground = true;
+            }
             self.vy = 0.0;
         }
     }
@@ -203,12 +238,12 @@ enum WorldState {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 struct AreniteApp {
-    world:        WorldState,
-    physics:      PhysicsWorld,
-    player:       Player,
-    renderer:     Option<AreniteRenderer>,
-    window:       Option<Arc<Window>>,
-    world_width:  i32,
+    world: WorldState,
+    physics: PhysicsWorld,
+    player: Player,
+    renderer: Option<AreniteRenderer>,
+    window: Option<Arc<Window>>,
+    world_width: i32,
     world_height: i32,
 
     /// Biome map — populated once world gen finishes; used for sky colour.
@@ -219,22 +254,25 @@ struct AreniteApp {
 
     // ── Item / inventory system (Starbound-inspired) ───────────────────────
     /// Static item definitions.
-    item_registry:     ItemRegistry,
+    item_registry: ItemRegistry,
     /// Static material definitions (for registry-based pixel placement).
     material_registry: MaterialRegistry,
     /// Player's full inventory: hotbar + main bag + armor.
-    player_inventory:  PlayerInventory,
+    player_inventory: PlayerInventory,
 
     // Input
-    left: bool, right: bool, jump: bool,
+    left: bool,
+    right: bool,
+    jump: bool,
     cursor_world: WorldPos,
-    placing: bool, removing: bool,
+    placing: bool,
+    removing: bool,
 
     // Timing
-    last_tick:  Instant,
+    last_tick: Instant,
     tick_accum: Duration,
     frame_count: u64,
-    fps_timer:   Instant,
+    fps_timer: Instant,
 
     #[allow(dead_code)]
     config: GameConfig,
@@ -243,15 +281,18 @@ struct AreniteApp {
 impl AreniteApp {
     fn new(config: GameConfig) -> Self {
         let cfg = WorldGenConfig {
-            width:  config.world_width,
+            width: config.world_width,
             height: config.world_height,
-            seed:   config.world_seed,
+            seed: config.world_seed,
             ..Default::default()
         };
         let w = config.world_width;
         let h = config.world_height;
 
-        info!("Starting background world gen {}×{} seed={}", cfg.width, cfg.height, cfg.seed);
+        info!(
+            "Starting background world gen {}×{} seed={}",
+            cfg.width, cfg.height, cfg.seed
+        );
 
         // T-018: spawn generation on a thread so the event loop starts immediately.
         let handle = thread::spawn(move || {
@@ -261,25 +302,28 @@ impl AreniteApp {
         });
 
         Self {
-            world:       WorldState::Loading(handle),
-            physics:     PhysicsWorld::new(),
-            player:      Player::new(w as f32 * 0.5, 10.0),  // temp position; corrected on ready
-            renderer:    None,
-            window:      None,
-            world_width:  w,
+            world: WorldState::Loading(handle),
+            physics: PhysicsWorld::new(),
+            player: Player::new(w as f32 * 0.5, 10.0), // temp position; corrected on ready
+            renderer: None,
+            window: None,
+            world_width: w,
             world_height: h,
-            biome_map:   None,
-            entities:          EntityManager::new(),
-            item_registry:     default_item_registry(),
+            biome_map: None,
+            entities: EntityManager::new(),
+            item_registry: default_item_registry(),
             material_registry: default_material_registry(),
-            player_inventory:  PlayerInventory::starter(),
-            left: false, right: false, jump: false,
+            player_inventory: PlayerInventory::starter(),
+            left: false,
+            right: false,
+            jump: false,
             cursor_world: WorldPos::new(0.0, 0.0),
-            placing: false, removing: false,
-            last_tick:   Instant::now(),
-            tick_accum:  Duration::ZERO,
+            placing: false,
+            removing: false,
+            last_tick: Instant::now(),
+            tick_accum: Duration::ZERO,
             frame_count: 0,
-            fps_timer:   Instant::now(),
+            fps_timer: Instant::now(),
             config,
         }
     }
@@ -322,9 +366,9 @@ impl AreniteApp {
         self.poll_world();
 
         const TICK: Duration = Duration::from_millis(16); // 60 TPS
-        let now     = Instant::now();
+        let now = Instant::now();
         let elapsed = now.duration_since(self.last_tick);
-        self.last_tick  = now;
+        self.last_tick = now;
         self.tick_accum += elapsed;
 
         while self.tick_accum >= TICK {
@@ -335,13 +379,15 @@ impl AreniteApp {
 
     fn game_tick(&mut self) {
         // Resolve paint material BEFORE borrowing `self.world` (borrow-checker split).
-        let paint_mat  = self.active_paint_mat();
-        let brush      = self.player.brush_radius;
-        let cursor     = self.cursor_world.tile();
-        let placing    = self.placing;
-        let removing   = self.removing;
+        let paint_mat = self.active_paint_mat();
+        let brush = self.player.brush_radius;
+        let cursor = self.cursor_world.tile();
+        let placing = self.placing;
+        let removing = self.removing;
 
-        let WorldState::Ready(sim) = &mut self.world else { return; };
+        let WorldState::Ready(sim) = &mut self.world else {
+            return;
+        };
 
         // Pixel painting — use inventory's active hotbar item if it's a tile-placer.
         if placing {
@@ -352,9 +398,9 @@ impl AreniteApp {
         }
 
         // Player physics + movement.
-        let left  = self.left;
+        let left = self.left;
         let right = self.right;
-        let jump  = self.jump;
+        let jump = self.jump;
         self.player.tick(sim, left, right, jump);
 
         // Tick entity AI.  Returns contact damage dealt to player this tick.
@@ -367,7 +413,9 @@ impl AreniteApp {
             self.player.hp = (self.player.hp - contact_dmg).max(0);
             self.player.iframes = 30; // 0.5 s invincibility
         }
-        if self.player.iframes > 0 { self.player.iframes -= 1; }
+        if self.player.iframes > 0 {
+            self.player.iframes -= 1;
+        }
 
         // Cellular automata tick.
         sim.tick_simulation();
@@ -399,7 +447,10 @@ impl AreniteApp {
     /// 2. Fall back to the legacy palette slot for quick testing.
     fn active_paint_mat(&self) -> MaterialInstance {
         // Try registry lookup first.
-        if let Some(mat_key) = self.player_inventory.active_material_key(&self.item_registry) {
+        if let Some(mat_key) = self
+            .player_inventory
+            .active_material_key(&self.item_registry)
+        {
             if let Some(mat) = make_instance(&self.material_registry, mat_key) {
                 return mat;
             }
@@ -438,7 +489,7 @@ impl AreniteApp {
                 w.set_title(&title);
             }
             self.frame_count = 0;
-            self.fps_timer   = Instant::now();
+            self.fps_timer = Instant::now();
         }
     }
 }
@@ -464,12 +515,7 @@ impl ApplicationHandler for AreniteApp {
         window.request_redraw();
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
 
@@ -479,37 +525,71 @@ impl ApplicationHandler for AreniteApp {
                 }
             }
 
-            WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state, .. }, .. } => {
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key,
+                        state,
+                        ..
+                    },
+                ..
+            } => {
                 let pressed = state.is_pressed();
                 if let PhysicalKey::Code(code) = physical_key {
                     match code {
-                        KeyCode::KeyA | KeyCode::ArrowLeft  => self.left  = pressed,
+                        KeyCode::KeyA | KeyCode::ArrowLeft => self.left = pressed,
                         KeyCode::KeyD | KeyCode::ArrowRight => self.right = pressed,
-                        KeyCode::Space | KeyCode::ArrowUp   => self.jump  = pressed,
-                        KeyCode::Escape if pressed          => event_loop.exit(),
+                        KeyCode::Space | KeyCode::ArrowUp => self.jump = pressed,
+                        KeyCode::Escape if pressed => event_loop.exit(),
 
                         // Hotbar slots 1–8: sync both legacy palette and inventory (T-029).
-                        KeyCode::Digit1 if pressed => { self.player.selected_mat = 0; self.player_inventory.select_slot(0); }
-                        KeyCode::Digit2 if pressed => { self.player.selected_mat = 1; self.player_inventory.select_slot(1); }
-                        KeyCode::Digit3 if pressed => { self.player.selected_mat = 2; self.player_inventory.select_slot(2); }
-                        KeyCode::Digit4 if pressed => { self.player.selected_mat = 3; self.player_inventory.select_slot(3); }
-                        KeyCode::Digit5 if pressed => { self.player.selected_mat = 4; self.player_inventory.select_slot(4); }
-                        KeyCode::Digit6 if pressed => { self.player.selected_mat = 5; self.player_inventory.select_slot(5); }
-                        KeyCode::Digit7 if pressed => { self.player.selected_mat = 6; self.player_inventory.select_slot(6); }
-                        KeyCode::Digit8 if pressed => { self.player.selected_mat = 7; self.player_inventory.select_slot(7); }
+                        KeyCode::Digit1 if pressed => {
+                            self.player.selected_mat = 0;
+                            self.player_inventory.select_slot(0);
+                        }
+                        KeyCode::Digit2 if pressed => {
+                            self.player.selected_mat = 1;
+                            self.player_inventory.select_slot(1);
+                        }
+                        KeyCode::Digit3 if pressed => {
+                            self.player.selected_mat = 2;
+                            self.player_inventory.select_slot(2);
+                        }
+                        KeyCode::Digit4 if pressed => {
+                            self.player.selected_mat = 3;
+                            self.player_inventory.select_slot(3);
+                        }
+                        KeyCode::Digit5 if pressed => {
+                            self.player.selected_mat = 4;
+                            self.player_inventory.select_slot(4);
+                        }
+                        KeyCode::Digit6 if pressed => {
+                            self.player.selected_mat = 5;
+                            self.player_inventory.select_slot(5);
+                        }
+                        KeyCode::Digit7 if pressed => {
+                            self.player.selected_mat = 6;
+                            self.player_inventory.select_slot(6);
+                        }
+                        KeyCode::Digit8 if pressed => {
+                            self.player.selected_mat = 7;
+                            self.player_inventory.select_slot(7);
+                        }
 
                         // T-031: brush size
-                        KeyCode::BracketLeft  if pressed =>
-                            self.player.brush_radius = (self.player.brush_radius - 1).max(1),
-                        KeyCode::BracketRight if pressed =>
-                            self.player.brush_radius = (self.player.brush_radius + 1).min(32),
+                        KeyCode::BracketLeft if pressed => {
+                            self.player.brush_radius = (self.player.brush_radius - 1).max(1)
+                        }
+                        KeyCode::BracketRight if pressed => {
+                            self.player.brush_radius = (self.player.brush_radius + 1).min(32)
+                        }
 
                         // T-024: save / load / pause
                         KeyCode::KeyS if pressed => {
                             if let WorldState::Ready(sim) = &self.world {
                                 let dir = std::path::Path::new("saves");
                                 match save_world(sim, dir, "default") {
-                                    Ok(_)  => info!("World saved to saves/default/"),
+                                    Ok(_) => info!("World saved to saves/default/"),
                                     Err(e) => log::error!("Save failed: {e}"),
                                 }
                             }
@@ -518,7 +598,8 @@ impl ApplicationHandler for AreniteApp {
                             let dir = std::path::Path::new("saves");
                             match load_world(dir, "default") {
                                 Ok(sim) => {
-                                    let (sx, sy) = find_spawn(&sim, self.world_width, self.world_height);
+                                    let (sx, sy) =
+                                        find_spawn(&sim, self.world_width, self.world_height);
                                     self.player = Player::new(sx, sy);
                                     if let Some(r) = &mut self.renderer {
                                         r.camera.position = glam::Vec2::new(sx, sy);
@@ -538,7 +619,9 @@ impl ApplicationHandler for AreniteApp {
 
             WindowEvent::CursorMoved { position, .. } => {
                 if let Some(r) = &self.renderer {
-                    let w = r.camera.screen_to_world(position.x as f32, position.y as f32);
+                    let w = r
+                        .camera
+                        .screen_to_world(position.x as f32, position.y as f32);
                     self.cursor_world = WorldPos::new(w.x, w.y);
                 }
             }
@@ -546,7 +629,7 @@ impl ApplicationHandler for AreniteApp {
             WindowEvent::MouseInput { button, state, .. } => {
                 let pressed = state.is_pressed();
                 match button {
-                    MouseButton::Left  => self.placing  = pressed,
+                    MouseButton::Left => self.placing = pressed,
                     MouseButton::Right => self.removing = pressed,
                     _ => {}
                 }
@@ -555,10 +638,11 @@ impl ApplicationHandler for AreniteApp {
             WindowEvent::MouseWheel { delta, .. } => {
                 let scroll = match delta {
                     winit::event::MouseScrollDelta::LineDelta(_, y) => y,
-                    winit::event::MouseScrollDelta::PixelDelta(p)   => p.y as f32 / 40.0,
+                    winit::event::MouseScrollDelta::PixelDelta(p) => p.y as f32 / 40.0,
                 };
                 if let Some(r) = &mut self.renderer {
-                    r.camera.zoom_by(if scroll > 0.0 { 1.15 } else { 1.0 / 1.15 });
+                    r.camera
+                        .zoom_by(if scroll > 0.0 { 1.15 } else { 1.0 / 1.15 });
                 }
             }
 
@@ -601,8 +685,8 @@ fn main() -> Result<()> {
         .init();
 
     info!("Arenite Engine");
-    let config     = load_config();
-    let app        = AreniteApp::new(config);
+    let config = load_config();
+    let app = AreniteApp::new(config);
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
     event_loop.run_app(&mut { app })?;

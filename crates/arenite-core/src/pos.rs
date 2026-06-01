@@ -12,7 +12,10 @@ pub struct TilePos {
 }
 
 impl TilePos {
-    #[inline] pub fn new(x: i32, y: i32) -> Self { Self { x, y } }
+    #[inline]
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
 
     /// Which chunk contains this tile.
     #[inline]
@@ -26,10 +29,7 @@ impl TilePos {
     /// Local position within the owning chunk [0, CHUNK_SIZE).
     #[inline]
     pub fn local(self) -> (i32, i32) {
-        (
-            self.x.rem_euclid(CHUNK_SIZE),
-            self.y.rem_euclid(CHUNK_SIZE),
-        )
+        (self.x.rem_euclid(CHUNK_SIZE), self.y.rem_euclid(CHUNK_SIZE))
     }
 
     /// Convert to flat index within a chunk (bounds are NOT checked).
@@ -41,10 +41,14 @@ impl TilePos {
 }
 
 impl From<IVec2> for TilePos {
-    fn from(v: IVec2) -> Self { Self::new(v.x, v.y) }
+    fn from(v: IVec2) -> Self {
+        Self::new(v.x, v.y)
+    }
 }
 impl From<TilePos> for IVec2 {
-    fn from(t: TilePos) -> Self { IVec2::new(t.x, t.y) }
+    fn from(t: TilePos) -> Self {
+        IVec2::new(t.x, t.y)
+    }
 }
 
 /// A position measured in chunks.
@@ -55,24 +59,30 @@ pub struct ChunkPos {
 }
 
 impl ChunkPos {
-    #[inline] pub fn new(x: i32, y: i32) -> Self { Self { x, y } }
+    #[inline]
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
 
     /// Top-left tile position of this chunk.
     #[inline]
     pub fn origin_tile(self) -> TilePos {
-        TilePos { x: self.x * CHUNK_SIZE, y: self.y * CHUNK_SIZE }
+        TilePos {
+            x: self.x * CHUNK_SIZE,
+            y: self.y * CHUNK_SIZE,
+        }
     }
 
     #[inline]
     pub fn neighbours(self) -> [ChunkPos; 8] {
         [
             ChunkPos::new(self.x - 1, self.y - 1),
-            ChunkPos::new(self.x,     self.y - 1),
+            ChunkPos::new(self.x, self.y - 1),
             ChunkPos::new(self.x + 1, self.y - 1),
             ChunkPos::new(self.x - 1, self.y),
             ChunkPos::new(self.x + 1, self.y),
             ChunkPos::new(self.x - 1, self.y + 1),
-            ChunkPos::new(self.x,     self.y + 1),
+            ChunkPos::new(self.x, self.y + 1),
             ChunkPos::new(self.x + 1, self.y + 1),
         ]
     }
@@ -83,10 +93,14 @@ impl ChunkPos {
 }
 
 impl From<IVec2> for ChunkPos {
-    fn from(v: IVec2) -> Self { Self::new(v.x, v.y) }
+    fn from(v: IVec2) -> Self {
+        Self::new(v.x, v.y)
+    }
 }
 impl From<ChunkPos> for IVec2 {
-    fn from(c: ChunkPos) -> Self { IVec2::new(c.x, c.y) }
+    fn from(c: ChunkPos) -> Self {
+        IVec2::new(c.x, c.y)
+    }
 }
 
 /// A continuous floating-point position in the world (pixels as f32).
@@ -97,14 +111,26 @@ pub struct WorldPos {
 }
 
 impl WorldPos {
-    #[inline] pub fn new(x: f32, y: f32) -> Self { Self { x, y } }
-    #[inline] pub fn tile(self) -> TilePos {
+    #[inline]
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+    #[inline]
+    pub fn tile(self) -> TilePos {
         TilePos::new(self.x.floor() as i32, self.y.floor() as i32)
     }
-    #[inline] pub fn chunk(self) -> ChunkPos { self.tile().to_chunk() }
-    #[inline] pub fn to_vec2(self) -> glam::Vec2 { glam::Vec2::new(self.x, self.y) }
+    #[inline]
+    pub fn chunk(self) -> ChunkPos {
+        self.tile().to_chunk()
+    }
+    #[inline]
+    pub fn to_vec2(self) -> glam::Vec2 {
+        glam::Vec2::new(self.x, self.y)
+    }
 }
 
 impl From<glam::Vec2> for WorldPos {
-    fn from(v: glam::Vec2) -> Self { Self::new(v.x, v.y) }
+    fn from(v: glam::Vec2) -> Self {
+        Self::new(v.x, v.y)
+    }
 }

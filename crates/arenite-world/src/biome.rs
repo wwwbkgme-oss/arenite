@@ -5,104 +5,104 @@ use arenite_core::Color;
 pub struct BiomeId(pub u8);
 
 impl BiomeId {
-    pub const PLAINS:    Self = BiomeId(0);
-    pub const DESERT:    Self = BiomeId(1);
-    pub const TUNDRA:    Self = BiomeId(2);
-    pub const JUNGLE:    Self = BiomeId(3);
-    pub const OCEAN:     Self = BiomeId(4);
-    pub const CAVERN:    Self = BiomeId(5);
-    pub const UNDERWORLD:Self = BiomeId(6);
+    pub const PLAINS: Self = BiomeId(0);
+    pub const DESERT: Self = BiomeId(1);
+    pub const TUNDRA: Self = BiomeId(2);
+    pub const JUNGLE: Self = BiomeId(3);
+    pub const OCEAN: Self = BiomeId(4);
+    pub const CAVERN: Self = BiomeId(5);
+    pub const UNDERWORLD: Self = BiomeId(6);
 }
 
 /// Static description of a biome's surface materials and visual parameters.
 #[derive(Clone, Debug)]
 pub struct Biome {
-    pub id:            BiomeId,
-    pub name:          &'static str,
+    pub id: BiomeId,
+    pub name: &'static str,
     /// Material placed in the top 1-3 tiles of the surface.
-    pub surface_mat:   &'static str,  // material registry key
+    pub surface_mat: &'static str, // material registry key
     /// Material placed in the subsurface (4-20 tiles deep).
-    pub subsurface_mat:&'static str,
+    pub subsurface_mat: &'static str,
     /// Background fill below subsurface.
-    pub fill_mat:      &'static str,
+    pub fill_mat: &'static str,
     /// Sky/background colour at this biome's horizon.
-    pub sky_color:     Color,
+    pub sky_color: Color,
     /// Surface height modifier: positive = higher terrain.
-    pub height_mod:    f64,
+    pub height_mod: f64,
     /// Cave frequency multiplier (> 1 = more caves).
-    pub cave_factor:   f64,
+    pub cave_factor: f64,
 }
 
 pub const BIOMES: &[Biome] = &[
     Biome {
         id: BiomeId::PLAINS,
         name: "Plains",
-        surface_mat:    "grass",
+        surface_mat: "grass",
         subsurface_mat: "dirt",
-        fill_mat:       "stone",
-        sky_color:       Color::rgb(135, 206, 235),
-        height_mod:     0.0,
-        cave_factor:    1.0,
+        fill_mat: "stone",
+        sky_color: Color::rgb(135, 206, 235),
+        height_mod: 0.0,
+        cave_factor: 1.0,
     },
     Biome {
         id: BiomeId::DESERT,
         name: "Desert",
-        surface_mat:    "sand",
+        surface_mat: "sand",
         subsurface_mat: "sand",
-        fill_mat:       "stone",
-        sky_color:       Color::rgb(210, 190, 140),
-        height_mod:    -0.05,
-        cave_factor:    0.8,
+        fill_mat: "stone",
+        sky_color: Color::rgb(210, 190, 140),
+        height_mod: -0.05,
+        cave_factor: 0.8,
     },
     Biome {
         id: BiomeId::TUNDRA,
         name: "Tundra",
-        surface_mat:    "snow",
+        surface_mat: "snow",
         subsurface_mat: "dirt",
-        fill_mat:       "stone",
-        sky_color:       Color::rgb(180, 210, 240),
-        height_mod:     0.02,
-        cave_factor:    0.9,
+        fill_mat: "stone",
+        sky_color: Color::rgb(180, 210, 240),
+        height_mod: 0.02,
+        cave_factor: 0.9,
     },
     Biome {
         id: BiomeId::JUNGLE,
         name: "Jungle",
-        surface_mat:    "grass",
+        surface_mat: "grass",
         subsurface_mat: "dirt",
-        fill_mat:       "stone",
-        sky_color:       Color::rgb(80, 160, 60),
-        height_mod:     0.08,
-        cave_factor:    1.3,
+        fill_mat: "stone",
+        sky_color: Color::rgb(80, 160, 60),
+        height_mod: 0.08,
+        cave_factor: 1.3,
     },
     Biome {
         id: BiomeId::OCEAN,
         name: "Ocean",
-        surface_mat:    "sand",
+        surface_mat: "sand",
         subsurface_mat: "sand",
-        fill_mat:       "stone",
-        sky_color:       Color::rgb(30, 100, 180),
-        height_mod:    -0.20,
-        cave_factor:    1.0,
+        fill_mat: "stone",
+        sky_color: Color::rgb(30, 100, 180),
+        height_mod: -0.20,
+        cave_factor: 1.0,
     },
     Biome {
         id: BiomeId::CAVERN,
         name: "Cavern",
-        surface_mat:    "stone",
+        surface_mat: "stone",
         subsurface_mat: "stone",
-        fill_mat:       "stone",
-        sky_color:       Color::rgb(20, 20, 30),
-        height_mod:     0.0,
-        cave_factor:    2.0,
+        fill_mat: "stone",
+        sky_color: Color::rgb(20, 20, 30),
+        height_mod: 0.0,
+        cave_factor: 2.0,
     },
     Biome {
         id: BiomeId::UNDERWORLD,
         name: "Underworld",
-        surface_mat:    "stone",
+        surface_mat: "stone",
         subsurface_mat: "stone",
-        fill_mat:       "stone",
-        sky_color:       Color::rgb(60, 10, 5),
-        height_mod:     0.0,
-        cave_factor:    1.5,
+        fill_mat: "stone",
+        sky_color: Color::rgb(60, 10, 5),
+        height_mod: 0.0,
+        cave_factor: 1.5,
     },
 ];
 

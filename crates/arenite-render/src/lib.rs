@@ -20,5 +20,5 @@ pub mod pipeline;
 pub mod renderer;
 pub mod vertex;
 
-pub use renderer::AreniteRenderer;
 pub use camera::Camera2D;
+pub use renderer::AreniteRenderer;
