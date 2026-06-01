@@ -1,0 +1,19 @@
+[package]
+name        = "arenite-render"
+description = "wgpu-based renderer with Terraria-style coloured lighting for Arenite Engine"
+version.workspace    = true
+authors.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+arenite-core.workspace  = true
+arenite-sim.workspace   = true
+wgpu.workspace          = true
+winit.workspace         = true
+bytemuck.workspace      = true
+image.workspace         = true
+serde.workspace         = true
+log.workspace           = true
+anyhow.workspace        = true
