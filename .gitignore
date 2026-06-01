@@ -1,0 +1,27 @@
+/target
+Cargo.lock
+**/*.rs.bk
+*.pdb
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated worlds / saves
+saves/
+worlds/
+screenshots/
+
+# Config overrides (keep the .toml.example files)
+arenite.toml
+arenite-server.toml
