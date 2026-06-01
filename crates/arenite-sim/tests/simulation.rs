@@ -1,20 +1,34 @@
-use arenite_core::pos::{TilePos, ChunkPos, CHUNK_SIZE};
+use arenite_core::pos::{ChunkPos, TilePos, CHUNK_SIZE};
 use arenite_sim::{
-    SimWorld, chunk::ChunkData,
-    material::MaterialInstance, physics_type::PhysicsType,
+    chunk::ChunkData, material::MaterialInstance, physics_type::PhysicsType, SimWorld,
 };
 
 fn solid_mat() -> MaterialInstance {
-    MaterialInstance { id: 2, physics: PhysicsType::Solid, color: arenite_core::Color::STONE,
-                       light: [0.0;3], data: 0 }
+    MaterialInstance {
+        id: 2,
+        physics: PhysicsType::Solid,
+        color: arenite_core::Color::STONE,
+        light: [0.0; 3],
+        data: 0,
+    }
 }
 fn sand_mat() -> MaterialInstance {
-    MaterialInstance { id: 3, physics: PhysicsType::Sand, color: arenite_core::Color::SAND,
-                       light: [0.0;3], data: 0 }
+    MaterialInstance {
+        id: 3,
+        physics: PhysicsType::Sand,
+        color: arenite_core::Color::SAND,
+        light: [0.0; 3],
+        data: 0,
+    }
 }
 fn water_mat() -> MaterialInstance {
-    MaterialInstance { id: 5, physics: PhysicsType::Liquid, color: arenite_core::Color::WATER,
-                       light: [0.0;3], data: 0 }
+    MaterialInstance {
+        id: 5,
+        physics: PhysicsType::Liquid,
+        color: arenite_core::Color::WATER,
+        light: [0.0; 3],
+        data: 0,
+    }
 }
 
 fn one_chunk_world(data: ChunkData) -> SimWorld {
@@ -28,16 +42,18 @@ fn one_chunk_world(data: ChunkData) -> SimWorld {
 #[test]
 fn world_loaded_count() {
     let mut w = SimWorld::new(0);
-    for cx in 0..3 { for cy in 0..3 {
-        w.insert_chunk(ChunkPos::new(cx, cy), ChunkData::new_empty());
-    }}
+    for cx in 0..3 {
+        for cy in 0..3 {
+            w.insert_chunk(ChunkPos::new(cx, cy), ChunkData::new_empty());
+        }
+    }
     assert_eq!(w.loaded_chunk_count(), 9);
 }
 
 #[test]
 fn set_get_pixel() {
     let mut w = SimWorld::new(0);
-    w.insert_chunk(ChunkPos::new(0,0), ChunkData::new_empty());
+    w.insert_chunk(ChunkPos::new(0, 0), ChunkData::new_empty());
     let tp = TilePos::new(5, 7);
     w.set_pixel(tp, sand_mat());
     assert_eq!(w.get_pixel(tp).physics, PhysicsType::Sand);
@@ -57,18 +73,28 @@ fn sand_falls_one_tile() {
     data.set(10, 10, sand_mat());
     let mut w = one_chunk_world(data);
     w.tick_simulation();
-    assert!(w.get_pixel(TilePos::new(10, 10)).is_air(),  "sand should leave (10,10)");
-    assert!(!w.get_pixel(TilePos::new(10, 11)).is_air(), "sand should be at (10,11)");
+    assert!(
+        w.get_pixel(TilePos::new(10, 10)).is_air(),
+        "sand should leave (10,10)"
+    );
+    assert!(
+        !w.get_pixel(TilePos::new(10, 11)).is_air(),
+        "sand should be at (10,11)"
+    );
 }
 
 #[test]
 fn sand_rests_on_solid() {
     let mut data = ChunkData::new_empty();
     // Solid floor at y=20.
-    for x in 0..CHUNK_SIZE { data.set(x, 20, solid_mat()); }
+    for x in 0..CHUNK_SIZE {
+        data.set(x, 20, solid_mat());
+    }
     data.set(10, 5, sand_mat());
     let mut w = one_chunk_world(data);
-    for _ in 0..25 { w.tick_simulation(); }
+    for _ in 0..25 {
+        w.tick_simulation();
+    }
     assert_eq!(w.get_pixel(TilePos::new(10, 19)).physics, PhysicsType::Sand);
 }
 
@@ -78,13 +104,20 @@ fn sand_rests_on_solid() {
 fn water_falls() {
     let mut data = ChunkData::new_empty();
     // Solid floor at y=30.
-    for x in 0..CHUNK_SIZE { data.set(x, 30, solid_mat()); }
+    for x in 0..CHUNK_SIZE {
+        data.set(x, 30, solid_mat());
+    }
     data.set(20, 5, water_mat());
     let mut w = one_chunk_world(data);
-    for _ in 0..80 { w.tick_simulation(); }
+    for _ in 0..80 {
+        w.tick_simulation();
+    }
     // The water should no longer be at its starting position.
     let still_at_start = w.get_pixel(TilePos::new(20, 5)).physics == PhysicsType::Liquid;
-    assert!(!still_at_start, "water should have moved from (20,5) after 80 ticks");
+    assert!(
+        !still_at_start,
+        "water should have moved from (20,5) after 80 ticks"
+    );
 }
 
 // ── save / load ───────────────────────────────────────────────────────────────

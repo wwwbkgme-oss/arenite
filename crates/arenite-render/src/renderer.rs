@@ -1,44 +1,42 @@
-use std::sync::Arc;
-use ahash::AHashMap;
-use wgpu::util::DeviceExt as _;
-use arenite_core::pos::{ChunkPos, CHUNK_SIZE};
-use arenite_sim::SimWorld;
 use crate::camera::Camera2D;
 use crate::chunk_tex::ChunkTexture;
 use crate::lighting::LightPropagator;
 use crate::pipeline::WorldPipeline;
 use crate::vertex::Vertex2D;
+use ahash::AHashMap;
+use arenite_core::pos::{ChunkPos, CHUNK_SIZE};
+use arenite_sim::SimWorld;
+use std::sync::Arc;
+use wgpu::util::DeviceExt as _;
 
 /// Top-level renderer — manages wgpu surface, pipelines,
 /// chunk textures, and per-frame draw calls.
 pub struct AreniteRenderer {
-    pub device:         Arc<wgpu::Device>,
-    pub queue:          Arc<wgpu::Queue>,
-    surface:            wgpu::Surface<'static>,
-    surface_cfg:        wgpu::SurfaceConfiguration,
-    world_pipe:         WorldPipeline,
-    chunk_textures:     AHashMap<ChunkPos, ChunkTexture>,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
+    surface: wgpu::Surface<'static>,
+    surface_cfg: wgpu::SurfaceConfiguration,
+    world_pipe: WorldPipeline,
+    chunk_textures: AHashMap<ChunkPos, ChunkTexture>,
     /// Shared index buffer for the unit quad (0,0)→(1,1).
-    quad_ibuf:          wgpu::Buffer,
+    quad_ibuf: wgpu::Buffer,
     /// Pre-allocated vertex buffer for all chunk quads — rebuilt when chunk set changes.
     /// Layout: [Vertex2D × 4] per visible chunk, in the same order as `draw_order`.
-    chunk_vbuf:         Option<wgpu::Buffer>,
+    chunk_vbuf: Option<wgpu::Buffer>,
     /// Chunk positions in draw order (matches `chunk_vbuf`).
-    draw_order:         Vec<ChunkPos>,
+    draw_order: Vec<ChunkPos>,
     /// Set of chunk positions in the last vbuf build; used to detect changes.
-    vbuf_generation:    u64,
-    pub camera:         Camera2D,
-    pub lighting:       LightPropagator,
+    vbuf_generation: u64,
+    pub camera: Camera2D,
+    pub lighting: LightPropagator,
     /// Sky/background clear colour — updated each frame from the current biome
     /// (see T-025).  Defaults to a neutral day-sky blue.
-    pub sky_color:      [f32; 3],
+    pub sky_color: [f32; 3],
 }
 
 impl AreniteRenderer {
     /// Initialise the renderer asynchronously.
-    pub async fn new(
-        window: Arc<winit::window::Window>,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(window: Arc<winit::window::Window>) -> anyhow::Result<Self> {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -50,8 +48,8 @@ impl AreniteRenderer {
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference:       wgpu::PowerPreference::HighPerformance,
-                compatible_surface:     Some(&surface),
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
             .await
@@ -60,31 +58,33 @@ impl AreniteRenderer {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    label:             Some("arenite_device"),
+                    label: Some("arenite_device"),
                     required_features: wgpu::Features::empty(),
-                    required_limits:   wgpu::Limits::default(),
-                    memory_hints:      wgpu::MemoryHints::default(),
+                    required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::default(),
                 },
                 None,
             )
             .await?;
 
         let device = Arc::new(device);
-        let queue  = Arc::new(queue);
+        let queue = Arc::new(queue);
 
-        let caps   = surface.get_capabilities(&adapter);
-        let format = caps.formats.iter()
+        let caps = surface.get_capabilities(&adapter);
+        let format = caps
+            .formats
+            .iter()
             .find(|f| f.is_srgb())
             .copied()
             .unwrap_or(caps.formats[0]);
 
         let surface_cfg = wgpu::SurfaceConfiguration {
-            usage:        wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
-            width:        size.width.max(1),
-            height:       size.height.max(1),
+            width: size.width.max(1),
+            height: size.height.max(1),
             present_mode: wgpu::PresentMode::AutoVsync,
-            alpha_mode:   caps.alpha_modes[0],
+            alpha_mode: caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
@@ -94,9 +94,9 @@ impl AreniteRenderer {
 
         // Shared index buffer (6 indices for one quad, reused for all chunks).
         let quad_ibuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label:    Some("quad_ibuf"),
+            label: Some("quad_ibuf"),
             contents: bytemuck::cast_slice(&Vertex2D::QUAD_INDICES),
-            usage:    wgpu::BufferUsages::INDEX,
+            usage: wgpu::BufferUsages::INDEX,
         });
 
         let camera = Camera2D::new(size.width as f32, size.height as f32);
@@ -107,22 +107,25 @@ impl AreniteRenderer {
             surface,
             surface_cfg,
             world_pipe,
-            chunk_textures:  AHashMap::default(),
+            chunk_textures: AHashMap::default(),
             quad_ibuf,
-            chunk_vbuf:      None,
-            draw_order:      Vec::new(),
+            chunk_vbuf: None,
+            draw_order: Vec::new(),
             vbuf_generation: 0,
             camera,
-            lighting:        LightPropagator::default(),
-            // Day-sky blue default (overridden by biome sky_color each frame).
-            sky_color:       [0.529, 0.808, 0.922],
+            lighting: LightPropagator::default(),
+            // Linear-space sky blue default (matching the original hardcoded value).
+            // Biome sky_color is applied each tick via sRGB→linear conversion.
+            sky_color: [0.22, 0.36, 0.58],
         })
     }
 
     /// Call when the window is resized.
     pub fn resize(&mut self, new_w: u32, new_h: u32) {
-        if new_w == 0 || new_h == 0 { return; }
-        self.surface_cfg.width  = new_w;
+        if new_w == 0 || new_h == 0 {
+            return;
+        }
+        self.surface_cfg.width = new_w;
         self.surface_cfg.height = new_h;
         self.surface.configure(&self.device, &self.surface_cfg);
         self.camera.resize(new_w as f32, new_h as f32);
@@ -159,8 +162,11 @@ impl AreniteRenderer {
 
         // Evict textures for chunks no longer in the world.
         let before = self.chunk_textures.len();
-        self.chunk_textures.retain(|pos, _| world.chunks.contains_key(pos));
-        if self.chunk_textures.len() != before { changed = true; }
+        self.chunk_textures
+            .retain(|pos, _| world.chunks.contains_key(pos));
+        if self.chunk_textures.len() != before {
+            changed = true;
+        }
 
         // Rebuild draw-order + vertex buffer when chunk set changes.
         if changed || self.chunk_vbuf.is_none() {
@@ -184,38 +190,47 @@ impl AreniteRenderer {
         for &pos in &self.draw_order {
             let ox = (pos.x * CHUNK_SIZE) as f32;
             let oy = (pos.y * CHUNK_SIZE) as f32;
-            verts.extend_from_slice(&Vertex2D::quad(ox, oy, CHUNK_SIZE as f32, CHUNK_SIZE as f32));
+            verts.extend_from_slice(&Vertex2D::quad(
+                ox,
+                oy,
+                CHUNK_SIZE as f32,
+                CHUNK_SIZE as f32,
+            ));
         }
 
-        self.chunk_vbuf = Some(self.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label:    Some("chunk_vbuf"),
-                contents: bytemuck::cast_slice(&verts),
-                usage:    wgpu::BufferUsages::VERTEX,
-            },
-        ));
+        self.chunk_vbuf = Some(
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("chunk_vbuf"),
+                    contents: bytemuck::cast_slice(&verts),
+                    usage: wgpu::BufferUsages::VERTEX,
+                }),
+        );
         self.vbuf_generation += 1;
     }
 
     /// Render one frame.  Returns `Err(SurfaceError)` on swapchain problems.
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let frame = self.surface.get_current_texture()?;
-        let view  = frame.texture.create_view(&Default::default());
+        let view = frame.texture.create_view(&Default::default());
 
-        self.world_pipe.update_camera(&self.queue, self.camera.view_proj());
+        self.world_pipe
+            .update_camera(&self.queue, self.camera.view_proj());
 
-        let mut encoder = self.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor { label: Some("frame_enc") }
-        );
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("frame_enc"),
+            });
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("world_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view:           &view,
+                    view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load:  wgpu::LoadOp::Clear(wgpu::Color {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: self.sky_color[0] as f64,
                             g: self.sky_color[1] as f64,
                             b: self.sky_color[2] as f64,
@@ -225,8 +240,8 @@ impl AreniteRenderer {
                     },
                 })],
                 depth_stencil_attachment: None,
-                timestamp_writes:         None,
-                occlusion_query_set:      None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
             });
 
             if let Some(vbuf) = &self.chunk_vbuf {

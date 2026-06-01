@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 /// Player input state sent from client to server each tick.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InputState {
-    pub left:   bool,
-    pub right:  bool,
-    pub up:     bool,
-    pub down:   bool,
-    pub jump:   bool,
+    pub left: bool,
+    pub right: bool,
+    pub up: bool,
+    pub down: bool,
+    pub jump: bool,
     /// World-space cursor position (for placing/removing pixels).
     pub cursor: WorldPos,
     /// True if the primary action (place material) is held.
@@ -25,10 +25,14 @@ pub struct InputState {
 impl Default for InputState {
     fn default() -> Self {
         Self {
-            left: false, right: false, up: false, down: false, jump: false,
-            cursor:       WorldPos::new(0.0, 0.0),
-            placing:      false,
-            removing:     false,
+            left: false,
+            right: false,
+            up: false,
+            down: false,
+            jump: false,
+            cursor: WorldPos::new(0.0, 0.0),
+            placing: false,
+            removing: false,
             selected_mat: 0,
             brush_radius: 3,
         }
@@ -42,24 +46,26 @@ pub enum NetMessage {
     /// Client → Server: request to join the game.
     Hello {
         protocol_version: u16,
-        player_name:      String,
+        player_name: String,
     },
     /// Server → Client: accept connection, assign player ID.
     Welcome {
-        player_id:    u32,
-        world_seed:   u64,
-        world_width:  i32,
+        player_id: u32,
+        world_seed: u64,
+        world_width: i32,
         world_height: i32,
-        spawn_x:      f32,
-        spawn_y:      f32,
+        spawn_x: f32,
+        spawn_y: f32,
     },
     /// Server → Client: connection rejected.
-    Reject { reason: String },
+    Reject {
+        reason: String,
+    },
 
     // ── World data ─────────────────────────────────────────────────────────
     /// Server → Client: raw chunk pixel data.
     ChunkData {
-        pos:    ChunkPos,
+        pos: ChunkPos,
         /// RGBA8 flat buffer: CHUNK_AREA × 4 bytes.
         pixels: Vec<u8>,
     },
@@ -75,19 +81,28 @@ pub enum NetMessage {
     /// Server → Client: updated player position.
     PlayerPos {
         player_id: u32,
-        x:         f32,
-        y:         f32,
-        vel_x:     f32,
-        vel_y:     f32,
+        x: f32,
+        y: f32,
+        vel_x: f32,
+        vel_y: f32,
     },
     /// Server → Client: another player connected.
-    PlayerJoined { player_id: u32, name: String },
+    PlayerJoined {
+        player_id: u32,
+        name: String,
+    },
     /// Server → Client: player left.
-    PlayerLeft  { player_id: u32 },
+    PlayerLeft {
+        player_id: u32,
+    },
 
     // ── Ping ───────────────────────────────────────────────────────────────
-    Ping  { sequence: u32 },
-    Pong  { sequence: u32 },
+    Ping {
+        sequence: u32,
+    },
+    Pong {
+        sequence: u32,
+    },
 
     // ── Graceful disconnect ────────────────────────────────────────────────
     Disconnect,

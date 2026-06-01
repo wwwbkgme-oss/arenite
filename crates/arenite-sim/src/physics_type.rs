@@ -6,25 +6,25 @@ use serde::{Deserialize, Serialize};
 pub enum PhysicsType {
     /// Empty space — air.  The absence of matter.
     #[default]
-    Air     = 0,
+    Air = 0,
 
     /// Immovable solid (rock, dirt walls).
-    Solid   = 1,
+    Solid = 1,
 
     /// Granular material: falls down, slides off piles at the angle of repose.
-    Sand    = 2,
+    Sand = 2,
 
     /// Incompressible liquid: flows sideways and down to fill space.
-    Liquid  = 3,
+    Liquid = 3,
 
     /// Low-density gas: rises and spreads.
-    Gas     = 4,
+    Gas = 4,
 
     /// Fire / plasma — spreads to flammable neighbours, self-destructs.
-    Fire    = 5,
+    Fire = 5,
 
     /// Placeholder used by the physics engine to mark rigidbody-occupied pixels.
-    Object  = 6,
+    Object = 6,
 }
 
 impl PhysicsType {
@@ -55,15 +55,13 @@ impl PhysicsType {
     /// Returns the display character for debug maps.
     pub fn char(self) -> char {
         match self {
-            Self::Air    => ' ',
-            Self::Solid  => '#',
-            Self::Sand   => ':',
+            Self::Air => ' ',
+            Self::Solid => '#',
+            Self::Sand => ':',
             Self::Liquid => '~',
-            Self::Gas    => '\'',
-            Self::Fire   => '*',
+            Self::Gas => '\'',
+            Self::Fire => '*',
             Self::Object => 'O',
         }
     }
 }
-
-

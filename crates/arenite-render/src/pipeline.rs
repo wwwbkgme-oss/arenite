@@ -1,5 +1,5 @@
+use crate::vertex::{CameraUniform, Vertex2D};
 use wgpu::util::DeviceExt;
-use crate::vertex::{Vertex2D, CameraUniform};
 
 /// WGSL shader source for the world chunk render pass.
 /// Samples a chunk texture, applies a per-pixel light multiplier from
@@ -44,91 +44,86 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
 
 /// Builds the wgpu render pipeline for chunk rendering.
 pub struct WorldPipeline {
-    pub pipeline:            wgpu::RenderPipeline,
-    pub camera_bind_layout:  wgpu::BindGroupLayout,
-    pub chunk_bind_layout:   wgpu::BindGroupLayout,
-    pub camera_buffer:       wgpu::Buffer,
-    pub camera_bind_group:   wgpu::BindGroup,
+    pub pipeline: wgpu::RenderPipeline,
+    pub camera_bind_layout: wgpu::BindGroupLayout,
+    pub chunk_bind_layout: wgpu::BindGroupLayout,
+    pub camera_buffer: wgpu::Buffer,
+    pub camera_bind_group: wgpu::BindGroup,
 }
 
 impl WorldPipeline {
     pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label:  Some("world_shader"),
+            label: Some("world_shader"),
             source: wgpu::ShaderSource::Wgsl(WORLD_SHADER.into()),
         });
 
         // Camera uniform bind group layout.
-        let camera_bind_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                label:   Some("camera_bgl"),
+        let camera_bind_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("camera_bgl"),
                 entries: &[wgpu::BindGroupLayoutEntry {
-                    binding:    0,
+                    binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
-                    ty:         wgpu::BindingType::Buffer {
-                        ty:                 wgpu::BufferBindingType::Uniform,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size:   None,
+                        min_binding_size: None,
                     },
                     count: None,
                 }],
-            },
-        );
+            });
 
         // Chunk texture bind group layout.
-        let chunk_bind_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                label:   Some("chunk_bgl"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding:    0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty:         wgpu::BindingType::Texture {
-                            sample_type:    wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled:   false,
-                        },
-                        count: None,
+        let chunk_bind_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("chunk_bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding:    1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty:         wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count:      None,
-                    },
-                ],
-            },
-        );
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
 
-        let pipeline_layout = device.create_pipeline_layout(
-            &wgpu::PipelineLayoutDescriptor {
-                label:                Some("world_pl"),
-                bind_group_layouts:   &[&camera_bind_layout, &chunk_bind_layout],
-                push_constant_ranges: &[],
-            },
-        );
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("world_pl"),
+            bind_group_layouts: &[&camera_bind_layout, &chunk_bind_layout],
+            push_constant_ranges: &[],
+        });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label:  Some("world_rp"),
+            label: Some("world_rp"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module:              &shader,
-                entry_point:         "vs_main",
-                buffers:             &[Vertex2D::LAYOUT],
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex2D::LAYOUT],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module:              &shader,
-                entry_point:         "fs_main",
-                targets:             &[Some(wgpu::ColorTargetState {
-                    format:     surface_format,
-                    blend:      Some(wgpu::BlendState::ALPHA_BLENDING),
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                topology:  wgpu::PrimitiveTopology::TriangleList,
+                topology: wgpu::PrimitiveTopology::TriangleList,
                 // 2D quads: the Y-axis flip in the orthographic projection makes
                 // all triangles CW in NDC space, so we must disable back-face
                 // culling or every quad would be discarded (blue screen).
@@ -136,36 +131,38 @@ impl WorldPipeline {
                 ..Default::default()
             },
             depth_stencil: None,
-            multisample:   wgpu::MultisampleState::default(),
-            multiview:     None,
-            cache:         None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
         });
 
         // Camera uniform buffer (updated every frame).
         let camera_buf_data = CameraUniform::from_matrix(glam::Mat4::IDENTITY);
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label:    Some("camera_buf"),
+            label: Some("camera_buf"),
             contents: bytemuck::bytes_of(&camera_buf_data),
-            usage:    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label:  Some("camera_bg"),
+            label: Some("camera_bg"),
             layout: &camera_bind_layout,
             entries: &[wgpu::BindGroupEntry {
-                binding:  0,
+                binding: 0,
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
 
-        Self { pipeline, camera_bind_layout, chunk_bind_layout, camera_buffer, camera_bind_group }
+        Self {
+            pipeline,
+            camera_bind_layout,
+            chunk_bind_layout,
+            camera_buffer,
+            camera_bind_group,
+        }
     }
 
-    pub fn update_camera(
-        &self,
-        queue: &wgpu::Queue,
-        view_proj: glam::Mat4,
-    ) {
+    pub fn update_camera(&self, queue: &wgpu::Queue, view_proj: glam::Mat4) {
         let uniform = CameraUniform::from_matrix(view_proj);
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
     }

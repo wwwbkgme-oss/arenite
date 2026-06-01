@@ -1,4 +1,4 @@
-use noise::{NoiseFn, OpenSimplex, Perlin, Fbm, MultiFractal};
+use noise::{Fbm, MultiFractal, NoiseFn, OpenSimplex, Perlin};
 
 /// Wraps multiple noise generators needed during world generation.
 ///
@@ -8,15 +8,15 @@ use noise::{NoiseFn, OpenSimplex, Perlin, Fbm, MultiFractal};
 pub struct NoiseField {
     pub seed: u64,
     /// Fine-grained terrain detail.
-    fbm_fine:   Fbm<OpenSimplex>,
+    fbm_fine: Fbm<OpenSimplex>,
     /// Coarse terrain shape.
     fbm_coarse: Fbm<OpenSimplex>,
     /// Cave carving noise.
-    cave:       Fbm<Perlin>,
+    cave: Fbm<Perlin>,
     /// Biome selector.
-    biome:      OpenSimplex,
+    biome: OpenSimplex,
     /// Ore/feature noise.
-    feature:    Perlin,
+    feature: Perlin,
 }
 
 impl NoiseField {
@@ -46,7 +46,7 @@ impl NoiseField {
             fbm_fine,
             fbm_coarse,
             cave,
-            biome:   OpenSimplex::new(seed32.wrapping_add(3)),
+            biome: OpenSimplex::new(seed32.wrapping_add(3)),
             feature: Perlin::new(seed32.wrapping_add(4)),
         }
     }
@@ -66,7 +66,7 @@ impl NoiseField {
     /// Combined terrain noise: coarse shape + fine detail overlay.
     pub fn terrain(&self, nx: f64, ny: f64) -> f64 {
         let c = self.terrain_coarse(nx * 0.4, ny * 0.4);
-        let f = self.terrain_fine (nx,        ny       ) * 0.3;
+        let f = self.terrain_fine(nx, ny) * 0.3;
         (c + f).clamp(-1.0, 1.0)
     }
 
@@ -80,7 +80,7 @@ impl NoiseField {
         let v1 = self.cave.get([nx + wx, ny + wy]);
         // Second pass at a different scale for nested cave shapes.
         let v2 = self.cave.get([nx * 2.1 + 50.0, ny * 2.1]) * 0.5;
-        v1 * v1 + v2 * v2   // squaring creates sharp-edged tube shapes
+        v1 * v1 + v2 * v2 // squaring creates sharp-edged tube shapes
     }
 
     /// Biome selector noise in [0, 1].

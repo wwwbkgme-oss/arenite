@@ -15,25 +15,25 @@ use log::info;
 
 use arenite_net::GameServer;
 
-use arenite_world::{WorldGenerator, worldgen::WorldGenConfig};
+use arenite_world::{worldgen::WorldGenConfig, WorldGenerator};
 
 #[derive(Debug, serde::Deserialize)]
 struct ServerConfig {
-    bind:         String,
-    world_width:  i32,
+    bind: String,
+    world_width: i32,
     world_height: i32,
-    world_seed:   u64,
-    tps:          u32,
+    world_seed: u64,
+    tps: u32,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            bind:         "0.0.0.0:25565".into(),
-            world_width:  4200,
+            bind: "0.0.0.0:25565".into(),
+            world_width: 4200,
             world_height: 1200,
-            world_seed:   fastrand::u64(..),
-            tps:          20,
+            world_seed: fastrand::u64(..),
+            tps: 20,
         }
     }
 }
@@ -60,20 +60,23 @@ async fn main() -> Result<()> {
 
     // Generate the world.
     let gen_cfg = WorldGenConfig {
-        width:  config.world_width,
+        width: config.world_width,
         height: config.world_height,
-        seed:   config.world_seed,
+        seed: config.world_seed,
         ..Default::default()
     };
     let mut sim = WorldGenerator::new(gen_cfg).generate();
-    info!("World generated. {} chunks loaded.", sim.loaded_chunk_count());
+    info!(
+        "World generated. {} chunks loaded.",
+        sim.loaded_chunk_count()
+    );
 
     // Start the network server on a separate tokio task.
     let addr: SocketAddr = config.bind.parse()?;
     let net_server = GameServer::new(addr);
 
-    let seed   = config.world_seed;
-    let width  = config.world_width;
+    let seed = config.world_seed;
+    let width = config.world_width;
     let height = config.world_height;
 
     tokio::spawn(async move {
@@ -88,7 +91,7 @@ async fn main() -> Result<()> {
     let mut tick_count: u64 = 0;
 
     loop {
-        let now     = Instant::now();
+        let now = Instant::now();
         let elapsed = now.duration_since(last_tick);
 
         if elapsed >= tick_duration {

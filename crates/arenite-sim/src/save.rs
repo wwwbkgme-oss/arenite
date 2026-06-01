@@ -7,10 +7,10 @@
 use std::fs;
 use std::path::Path;
 
-use arenite_core::pos::ChunkPos;
-use arenite_core::error::{AreniteError, AreniteResult};
 use crate::chunk::ChunkData;
 use crate::world::SimWorld;
+use arenite_core::error::{AreniteError, AreniteResult};
+use arenite_core::pos::ChunkPos;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct WorldMeta {
@@ -21,17 +21,20 @@ struct WorldMeta {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct ChunkSave {
     pixels: Vec<crate::material::MaterialInstance>,
-    light:  Vec<[f32; 3]>,
+    light: Vec<[f32; 3]>,
 }
 
 /// Persist `world` to `<dir>/<name>/`.
 pub fn save_world(world: &SimWorld, dir: &Path, name: &str) -> AreniteResult<()> {
-    let root      = dir.join(name);
+    let root = dir.join(name);
     let chunk_dir = root.join("chunks");
     fs::create_dir_all(&chunk_dir)?;
 
-    let meta_bytes = bincode::serialize(&WorldMeta { tick: world.tick, seed: world.seed })
-        .map_err(|e| AreniteError::Serialise(e.to_string()))?;
+    let meta_bytes = bincode::serialize(&WorldMeta {
+        tick: world.tick,
+        seed: world.seed,
+    })
+    .map_err(|e| AreniteError::Serialise(e.to_string()))?;
     fs::write(root.join("meta.bin"), &meta_bytes)?;
 
     for (pos, cell) in &world.chunks {
@@ -39,8 +42,9 @@ pub fn save_world(world: &SimWorld, dir: &Path, name: &str) -> AreniteResult<()>
         let data = unsafe { &*cell.get() };
         let bytes = bincode::serialize(&ChunkSave {
             pixels: data.pixels.clone(),
-            light:  data.light.clone(),
-        }).map_err(|e| AreniteError::Serialise(e.to_string()))?;
+            light: data.light.clone(),
+        })
+        .map_err(|e| AreniteError::Serialise(e.to_string()))?;
         fs::write(chunk_dir.join(format!("{}_{}.bin", pos.x, pos.y)), &bytes)?;
     }
 
@@ -52,12 +56,11 @@ pub fn save_world(world: &SimWorld, dir: &Path, name: &str) -> AreniteResult<()>
 pub fn load_world(dir: &Path, name: &str) -> AreniteResult<SimWorld> {
     let root = dir.join(name);
 
-    let meta: WorldMeta = bincode::deserialize(
-        &fs::read(root.join("meta.bin"))?
-    ).map_err(|e| AreniteError::Serialise(e.to_string()))?;
+    let meta: WorldMeta = bincode::deserialize(&fs::read(root.join("meta.bin"))?)
+        .map_err(|e| AreniteError::Serialise(e.to_string()))?;
 
-    let mut world  = SimWorld::new(meta.seed);
-    world.tick     = meta.tick;
+    let mut world = SimWorld::new(meta.seed);
+    world.tick = meta.tick;
 
     let chunk_dir = root.join("chunks");
     if chunk_dir.exists() {
@@ -67,9 +70,9 @@ pub fn load_world(dir: &Path, name: &str) -> AreniteResult<SimWorld> {
                 if let Some(pos) = parse_chunk_filename(path.file_stem()) {
                     let save: ChunkSave = bincode::deserialize(&fs::read(&path)?)
                         .map_err(|e| AreniteError::Serialise(e.to_string()))?;
-                    let mut data    = ChunkData::new_empty();
-                    data.pixels     = save.pixels;
-                    data.light      = save.light;
+                    let mut data = ChunkData::new_empty();
+                    data.pixels = save.pixels;
+                    data.light = save.light;
                     data.dirty.dirty = true; // force GPU re-upload
                     world.insert_chunk(pos, data);
                 }
@@ -77,7 +80,12 @@ pub fn load_world(dir: &Path, name: &str) -> AreniteResult<SimWorld> {
         }
     }
 
-    log::info!("Loaded '{}' — {} chunks, tick={}", name, world.chunks.len(), world.tick);
+    log::info!(
+        "Loaded '{}' — {} chunks, tick={}",
+        name,
+        world.chunks.len(),
+        world.tick
+    );
     Ok(world)
 }
 

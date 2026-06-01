@@ -10,11 +10,11 @@
 // followed by bincode-serialised `NetMessage` bytes.  Both client and
 // server share the same message enum and framing layer.
 
+pub mod client;
 pub mod codec;
 pub mod message;
 pub mod server;
-pub mod client;
 
+pub use client::GameClient;
 pub use message::NetMessage;
 pub use server::GameServer;
-pub use client::GameClient;

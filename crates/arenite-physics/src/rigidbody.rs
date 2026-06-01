@@ -1,9 +1,9 @@
-use rapier2d::prelude::*;
+use crate::physics::PhysicsWorld;
 use arenite_core::pos::TilePos;
-use arenite_sim::SimWorld;
 use arenite_sim::material::MaterialInstance;
 use arenite_sim::physics_type::PhysicsType;
-use crate::physics::PhysicsWorld;
+use arenite_sim::SimWorld;
+use rapier2d::prelude::*;
 
 /// A game entity backed by a rapier2d rigidbody.
 ///
@@ -13,7 +13,7 @@ use crate::physics::PhysicsWorld;
 ///     into a particle and an impulse is applied to the body.
 ///  2. After the sand tick: clear the Object pixels back to air.
 pub struct RigidBody {
-    pub body_handle:     RigidBodyHandle,
+    pub body_handle: RigidBodyHandle,
     pub collider_handle: ColliderHandle,
     /// Half-extents of the bounding box in pixels.
     pub half_w: f32,
@@ -26,16 +26,18 @@ pub struct RigidBody {
 
 impl RigidBody {
     pub fn new(
-        phys:   &mut PhysicsWorld,
-        x: f32, y: f32,
-        half_w: f32, half_h: f32,
-        mass:   f32,
+        phys: &mut PhysicsWorld,
+        x: f32,
+        y: f32,
+        half_w: f32,
+        half_h: f32,
+        mass: f32,
     ) -> Self {
         let (bh, ch) = phys.add_dynamic_box(x, y, half_w, half_h, mass);
         let pw = (half_w * 2.0) as i32;
         let ph = (half_h * 2.0) as i32;
         Self {
-            body_handle:     bh,
+            body_handle: bh,
             collider_handle: ch,
             half_w,
             half_h,
@@ -53,22 +55,18 @@ impl RigidBody {
 
     /// Step 1: stamp Object pixels into the sim world.
     /// Any sand displaced this way generates a force impulse on the body.
-    pub fn pre_sim_stamp(
-        &self,
-        phys:  &mut PhysicsWorld,
-        world: &mut SimWorld,
-    ) {
+    pub fn pre_sim_stamp(&self, phys: &mut PhysicsWorld, world: &mut SimWorld) {
         let (x0, y0) = match self.top_left(phys) {
             Some(t) => t,
-            None    => return,
+            None => return,
         };
 
         let object_pixel = MaterialInstance {
-            id:      0,
+            id: 0,
             physics: PhysicsType::Object,
-            color:   arenite_core::Color::TRANSPARENT,
-            light:   [0.0; 3],
-            data:    0,
+            color: arenite_core::Color::TRANSPARENT,
+            light: [0.0; 3],
+            data: 0,
         };
 
         let mut impulse_x = 0.0_f32;
@@ -97,14 +95,10 @@ impl RigidBody {
     }
 
     /// Step 2: clear Object pixels back to air after the sim tick.
-    pub fn post_sim_clear(
-        &self,
-        phys:  &PhysicsWorld,
-        world: &mut SimWorld,
-    ) {
+    pub fn post_sim_clear(&self, phys: &PhysicsWorld, world: &mut SimWorld) {
         let (x0, y0) = match self.top_left(phys) {
             Some(t) => t,
-            None    => return,
+            None => return,
         };
 
         for dy in 0..self.pixel_h {
@@ -112,7 +106,7 @@ impl RigidBody {
                 let tx = (x0 + dx as f32) as i32;
                 let ty = (y0 + dy as f32) as i32;
                 let tp = TilePos::new(tx, ty);
-                let p  = world.get_pixel(tp);
+                let p = world.get_pixel(tp);
                 if p.physics == PhysicsType::Object {
                     world.set_pixel(tp, MaterialInstance::air());
                 }

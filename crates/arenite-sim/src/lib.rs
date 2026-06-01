@@ -15,20 +15,20 @@
 
 pub mod chunk;
 pub mod material;
+pub mod particle;
 pub mod physics_type;
 pub mod save;
 pub mod simulator;
 pub mod world;
-pub mod particle;
 
 pub use chunk::{Chunk, ChunkData};
-pub use material::{Material, MaterialInstance, MaterialRegistry, make_instance};
+pub use material::{make_instance, Material, MaterialInstance, MaterialRegistry};
+pub use particle::Particle;
 pub use physics_type::PhysicsType;
-pub use save::{save_world, load_world};
+pub use save::{load_world, save_world};
 pub use simulator::Simulator;
 pub use world::SimWorld;
-pub use particle::Particle;
 
 // Re-export core position types used heavily throughout sim
-pub use arenite_core::pos::{ChunkPos, TilePos, CHUNK_SIZE, CHUNK_AREA};
+pub use arenite_core::pos::{ChunkPos, TilePos, CHUNK_AREA, CHUNK_SIZE};
 pub use arenite_core::Color;

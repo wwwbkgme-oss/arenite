@@ -1,6 +1,6 @@
+use crate::id::{Id, StringId};
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use crate::id::{Id, StringId};
 
 /// A registry maps string keys to typed numeric IDs and back.
 ///
@@ -19,8 +19,8 @@ pub type RegistryId<T> = Id<T>;
 impl<T> Registry<T> {
     pub fn new() -> Self {
         Self {
-            by_name:  HashMap::default(),
-            entries:  Vec::new(),
+            by_name: HashMap::default(),
+            entries: Vec::new(),
             _phantom: PhantomData,
         }
     }
@@ -29,7 +29,11 @@ impl<T> Registry<T> {
     /// Panics if the key is already registered.
     pub fn register(&mut self, key: impl Into<StringId>, value: T) -> Id<T> {
         let key = key.into();
-        assert!(!self.by_name.contains_key(&key), "Duplicate registry key: {}", key);
+        assert!(
+            !self.by_name.contains_key(&key),
+            "Duplicate registry key: {}",
+            key
+        );
         let id = Id::new(self.entries.len() as u32);
         self.by_name.insert(key.clone(), id);
         self.entries.push((key, value));
@@ -60,12 +64,18 @@ impl<T> Registry<T> {
             .map(|(i, (k, v))| (Id::new(i as u32), k, v))
     }
 
-    pub fn len(&self) -> usize { self.entries.len() }
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 impl<T> Default for Registry<T> {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> std::ops::Index<Id<T>> for Registry<T> {

@@ -11,11 +11,15 @@ pub struct AreniteRng {
 
 impl AreniteRng {
     pub fn new() -> Self {
-        Self { inner: fastrand::Rng::new() }
+        Self {
+            inner: fastrand::Rng::new(),
+        }
     }
 
     pub fn from_seed(seed: u64) -> Self {
-        Self { inner: fastrand::Rng::with_seed(seed) }
+        Self {
+            inner: fastrand::Rng::with_seed(seed),
+        }
     }
 
     /// Seed from two i32 coordinates (useful for per-chunk / per-tile determinism).
@@ -30,15 +34,34 @@ impl AreniteRng {
         Self::from_seed(h)
     }
 
-    #[inline] pub fn bool(&mut self) -> bool { self.inner.bool() }
-    #[inline] pub fn u8(&mut self)  -> u8  { self.inner.u8(..) }
-    #[inline] pub fn u32(&mut self) -> u32 { self.inner.u32(..) }
-    #[inline] pub fn u64(&mut self) -> u64 { self.inner.u64(..) }
-    #[inline] pub fn i32_range(&mut self, lo: i32, hi: i32) -> i32 {
+    #[inline]
+    pub fn bool(&mut self) -> bool {
+        self.inner.bool()
+    }
+    #[inline]
+    pub fn u8(&mut self) -> u8 {
+        self.inner.u8(..)
+    }
+    #[inline]
+    pub fn u32(&mut self) -> u32 {
+        self.inner.u32(..)
+    }
+    #[inline]
+    pub fn u64(&mut self) -> u64 {
+        self.inner.u64(..)
+    }
+    #[inline]
+    pub fn i32_range(&mut self, lo: i32, hi: i32) -> i32 {
         lo + (self.inner.u32(..) % (hi - lo).max(1) as u32) as i32
     }
-    #[inline] pub fn f32(&mut self) -> f32 { self.inner.f32() }
-    #[inline] pub fn f64(&mut self) -> f64 { self.inner.f64() }
+    #[inline]
+    pub fn f32(&mut self) -> f32 {
+        self.inner.f32()
+    }
+    #[inline]
+    pub fn f64(&mut self) -> f64 {
+        self.inner.f64()
+    }
 
     /// Choose a random element from a non-empty slice.
     pub fn choice<'a, T>(&mut self, items: &'a [T]) -> &'a T {
@@ -55,5 +78,7 @@ impl AreniteRng {
 }
 
 impl Default for AreniteRng {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }

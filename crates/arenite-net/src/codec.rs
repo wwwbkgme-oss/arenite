@@ -1,14 +1,11 @@
+use crate::message::{NetMessage, MAX_MESSAGE_BYTES};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use crate::message::{NetMessage, MAX_MESSAGE_BYTES};
 
 /// Write a length-prefixed bincode message to a TCP stream.
-pub async fn write_message(
-    stream: &mut TcpStream,
-    msg:    &NetMessage,
-) -> anyhow::Result<()> {
+pub async fn write_message(stream: &mut TcpStream, msg: &NetMessage) -> anyhow::Result<()> {
     let bytes = bincode::serialize(msg)?;
-    let len   = bytes.len() as u32;
+    let len = bytes.len() as u32;
     stream.write_all(&len.to_le_bytes()).await?;
     stream.write_all(&bytes).await?;
     stream.flush().await?;
