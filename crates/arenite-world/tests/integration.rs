@@ -63,6 +63,11 @@ fn integration_fire_spreads_to_flammable_wood() {
         light: [0.0; 3],
         data: flags::FLAMMABLE,
     };
+    // Place fire *below* a row of wood pixels.  Because wood is Solid,
+    // the fire cannot rise through it (displace checks is_displaceable()
+    // which returns false for Solid), so each fire pixel stays adjacent to
+    // its wood neighbour above for the fire's full lifetime.  Using five
+    // pairs makes the expected-spread probability effectively certain.
     let fire = MaterialInstance {
         id: 9,
         physics: PhysicsType::Fire,
@@ -70,12 +75,16 @@ fn integration_fire_spreads_to_flammable_wood() {
         light: [1.0, 0.6, 0.1],
         data: 60,
     };
-    sim.set_pixel(TilePos::new(10, 10), wood);
-    sim.set_pixel(TilePos::new(11, 10), fire);
+    for x in 8..=12_i32 {
+        sim.set_pixel(TilePos::new(x, 10), wood); // row of wood
+        sim.set_pixel(TilePos::new(x, 11), fire); // fire directly below
+    }
     let burned = (0..200).any(|_| {
         sim.tick_simulation();
-        let p = sim.get_pixel(TilePos::new(10, 10));
-        p.physics == PhysicsType::Fire || p.is_air()
+        (8..=12_i32).any(|x| {
+            let p = sim.get_pixel(TilePos::new(x, 10));
+            p.physics == PhysicsType::Fire || p.is_air()
+        })
     });
     assert!(burned, "fire did not spread to wood in 200 ticks");
 }
