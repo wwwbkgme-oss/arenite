@@ -4,11 +4,9 @@ use arenite_sim::material::MaterialInstance;
 use arenite_sim::physics_type::PhysicsType;
 use arenite_core::rng::AreniteRng;
 
-/// Simple structure definitions for the world generator.
+/// A 2D stamp of pixels that can be placed at a world position.
 /// Inspired by terra-awg's structures/ directory and
 /// FallingSandEngine's structure/jigsaw_structure system.
-
-/// A 2D stamp of pixels that can be placed at a world position.
 #[derive(Clone, Debug)]
 pub struct Structure {
     pub name:   &'static str,
@@ -50,7 +48,6 @@ pub fn make_house() -> Structure {
     use arenite_core::Color;
     let w = Color::WOOD;
     let s = Color::rgb(200, 170, 120); // straw roof
-    let e = Color::TRANSPARENT;        // empty (air)
 
     // 7 wide × 5 tall:
     // SSSSSSS

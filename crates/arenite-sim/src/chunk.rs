@@ -65,7 +65,7 @@ impl ChunkData {
     /// Return pixel index for chunk-local (x, y), unchecked.
     #[inline]
     pub fn idx(x: i32, y: i32) -> usize {
-        debug_assert!(x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_SIZE);
+        debug_assert!((0..CHUNK_SIZE).contains(&x) && (0..CHUNK_SIZE).contains(&y));
         (y * CHUNK_SIZE + x) as usize
     }
 
@@ -84,7 +84,7 @@ impl ChunkData {
     pub fn fill_rect(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, mat: MaterialInstance) {
         for y in y0..=y1 {
             for x in x0..=x1 {
-                if x >= 0 && x < CHUNK_SIZE && y >= 0 && y < CHUNK_SIZE {
+                if (0..CHUNK_SIZE).contains(&x) && (0..CHUNK_SIZE).contains(&y) {
                     self.set(x, y, mat);
                 }
             }

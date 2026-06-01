@@ -1,11 +1,11 @@
-use arenite_core::pos::{TilePos, ChunkPos, CHUNK_SIZE};
+use arenite_core::pos::{ChunkPos, CHUNK_SIZE};
 use arenite_core::rng::AreniteRng;
 use arenite_sim::SimWorld;
 use arenite_sim::chunk::ChunkData;
 use arenite_sim::material::MaterialInstance;
 use arenite_sim::physics_type::PhysicsType;
 use crate::biome::{Biome, BiomeId, BiomeMap};
-use crate::cave::CaveCarver;
+use crate::cave::{CaveCarver, CaveContext};
 use crate::feature::FeaturePlacer;
 use crate::height::HeightMap;
 use crate::noise_field::NoiseField;
@@ -78,24 +78,23 @@ impl WorldGenerator {
         // Carve caves.
         let carver = CaveCarver::default();
         log::info!("Carving caves…");
-        carver.carve_region(
-            &mut world,
-            0, cfg.width,
-            cfg.width, cfg.height,
-            &noise,
-            &heights.surface,
-            heights.underground,
-            heights.cavern,
-            cfg.cave_density,
-        );
+        let cave_ctx = CaveContext {
+            world_width:   cfg.width,
+            world_height:  cfg.height,
+            noise:         &noise,
+            underground_y: heights.underground,
+            cavern_y:      heights.cavern,
+            cave_factor:   cfg.cave_density,
+        };
+        carver.carve_region(&mut world, 0, cfg.width, &heights.surface, &cave_ctx);
 
         // Place ores.
         log::info!("Placing ores…");
         FeaturePlacer::place_ores(
             &mut world,
-            cfg.width, cfg.height,
+            cfg.width,
+            cfg.height,
             &noise,
-            &heights.surface,
             heights.underground,
             heights.cavern,
         );

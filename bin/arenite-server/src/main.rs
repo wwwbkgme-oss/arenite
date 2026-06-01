@@ -14,7 +14,7 @@ use anyhow::Result;
 use log::info;
 
 use arenite_net::GameServer;
-use arenite_sim::SimWorld;
+
 use arenite_world::{WorldGenerator, worldgen::WorldGenConfig};
 
 #[derive(Debug, serde::Deserialize)]
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
             tick_count += 1;
 
             // Log stats every 10 seconds.
-            if tick_count % (config.tps as u64 * 10) == 0 {
+            if tick_count.is_multiple_of(config.tps as u64 * 10) {
                 info!(
                     "Tick {}  active_chunks={}  particles={}",
                     tick_count,

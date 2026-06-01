@@ -1,11 +1,10 @@
 /// Lightweight deterministic RNG helpers wrapping `fastrand`.
 ///
-/// Usage:
-/// ```
+/// # Usage
+/// ```ignore
 /// let mut rng = AreniteRng::from_seed(42);
 /// let v: f32 = rng.f32();
 /// ```
-
 pub struct AreniteRng {
     inner: fastrand::Rng,
 }

@@ -1,7 +1,4 @@
-use arenite_core::id::Id;
 use arenite_core::Color;
-use arenite_sim::material::MaterialInstance;
-use arenite_sim::physics_type::PhysicsType;
 
 /// Unique biome type identifier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

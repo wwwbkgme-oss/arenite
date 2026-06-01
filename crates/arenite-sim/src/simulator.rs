@@ -1,5 +1,5 @@
 use std::cell::UnsafeCell;
-use arenite_core::pos::{ChunkPos, TilePos, CHUNK_SIZE, CHUNK_AREA};
+use arenite_core::pos::CHUNK_SIZE;
 use crate::chunk::ChunkData;
 use crate::material::MaterialInstance;
 use crate::physics_type::PhysicsType;
@@ -26,7 +26,7 @@ use crate::particle::Particle;
 /// - `Gas`    → rise, spread horizontally
 /// - `Fire`   → spread to flammable neighbours, consume lifetime
 /// - `Solid` / `Air` / `Object` → static, no update
-
+#[allow(clippy::needless_return)]
 pub struct Simulator;
 
 impl Simulator {
@@ -35,7 +35,7 @@ impl Simulator {
     /// `ctx` gives read/write access to the centre chunk and its 8 neighbours.
     /// `tick` is the global simulation tick counter (used for checkerboard ordering).
     pub fn tick_chunk(ctx: &mut SimContext, tick: u64) {
-        let even = tick % 2 == 0;
+        let even = tick.is_multiple_of(2);
         // Process pixels bottom-to-top for sand/liquid (they want to fall),
         // and top-to-bottom for gas/fire (they rise).
         for pass in 0..2_u8 {
@@ -47,7 +47,7 @@ impl Simulator {
 
             for y in y_range {
                 // Alternate horizontal direction per row to avoid drift.
-                let x_range: Box<dyn Iterator<Item = i32>> = if (y as u64 + tick) % 2 == 0 {
+                let x_range: Box<dyn Iterator<Item = i32>> = if (y as u64 + tick).is_multiple_of(2) {
                     Box::new(0..CHUNK_SIZE)
                 } else {
                     Box::new((0..CHUNK_SIZE).rev())
@@ -87,7 +87,8 @@ impl Simulator {
         let (dx0, dx1) = if left_first { (-1, 1) } else { (1, -1) };
 
         if Self::displace(ctx, x, y, x + dx0, y + 1, mat) { return; }
-        if Self::displace(ctx, x, y, x + dx1, y + 1, mat) { return; }
+        // Last attempt — no return needed, function ends here.
+        let _ = Self::displace(ctx, x, y, x + dx1, y + 1, mat);
     }
 
     // ── Liquid ───────────────────────────────────────────────────────────────

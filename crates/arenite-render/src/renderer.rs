@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use ahash::AHashMap;
-use wgpu::util::DeviceExt;
+use wgpu::util::DeviceExt as _;
 use arenite_core::pos::{ChunkPos, CHUNK_SIZE};
 use arenite_sim::SimWorld;
 use crate::camera::Camera2D;
@@ -18,7 +18,6 @@ pub struct AreniteRenderer {
     surface_cfg:  wgpu::SurfaceConfiguration,
     world_pipe:   WorldPipeline,
     chunk_textures: AHashMap<ChunkPos, ChunkTexture>,
-    quad_vbuf:    wgpu::Buffer,
     quad_ibuf:    wgpu::Buffer,
     pub camera:   Camera2D,
     pub lighting: LightPropagator,
@@ -82,13 +81,7 @@ impl AreniteRenderer {
 
         let world_pipe = WorldPipeline::new(&device, format);
 
-        // Unit quad for drawing chunk textures.
-        let quad_verts = Vertex2D::quad(0.0, 0.0, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
-        let quad_vbuf  = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label:    Some("quad_vbuf"),
-            contents: bytemuck::cast_slice(&quad_verts),
-            usage:    wgpu::BufferUsages::VERTEX,
-        });
+        // Index buffer for the quad (shared; vertices are per-chunk).
         let quad_ibuf  = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label:    Some("quad_ibuf"),
             contents: bytemuck::cast_slice(&Vertex2D::QUAD_INDICES),
@@ -104,7 +97,6 @@ impl AreniteRenderer {
             surface_cfg,
             world_pipe,
             chunk_textures: AHashMap::default(),
-            quad_vbuf,
             quad_ibuf,
             camera,
             lighting: LightPropagator::default(),
@@ -124,11 +116,14 @@ impl AreniteRenderer {
     /// Only uploads dirty chunks.
     pub fn sync_chunks(&mut self, world: &SimWorld) {
         for (&pos, cell) in &world.chunks {
-            let data = unsafe { &*cell.get() };
+            // SAFETY: we hold the only reference during the render-prep phase,
+            // which runs between sim ticks on the main thread.
+            let data = unsafe { &mut *cell.get() };
 
             if let Some(tex) = self.chunk_textures.get(&pos) {
                 if data.dirty.dirty {
                     tex.upload(&self.queue, data);
+                    data.dirty = arenite_sim::chunk::DirtyRect::clean();
                 }
             } else {
                 // New chunk — create texture.
@@ -178,18 +173,26 @@ impl AreniteRenderer {
 
             pass.set_pipeline(&self.world_pipe.pipeline);
             pass.set_bind_group(0, &self.world_pipe.camera_bind_group, &[]);
-            pass.set_vertex_buffer(0, self.quad_vbuf.slice(..));
             pass.set_index_buffer(self.quad_ibuf.slice(..), wgpu::IndexFormat::Uint16);
 
-            // Draw each chunk as a textured quad offset to its world position.
+            // Draw each visible chunk as a textured quad at its world-space position.
+            // We write per-chunk vertex data into a temporary buffer each frame.
+            // This is simple and correct; a future optimisation would use a persistent
+            // instance buffer updated only when chunks load/unload (T-034).
             for (pos, tex) in &self.chunk_textures {
-                // Build a per-chunk push: translate the unit quad to chunk origin.
                 let ox = (pos.x * CHUNK_SIZE) as f32;
                 let oy = (pos.y * CHUNK_SIZE) as f32;
                 let verts = Vertex2D::quad(ox, oy, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
 
-                // Re-use the quad vertex buffer but with a per-chunk offset uniform
-                // (in a real implementation you'd use instance buffers or push constants).
+                // Upload per-chunk vertices then draw.
+                let vbuf = self.device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label:    Some("chunk_quad_vbuf"),
+                        contents: bytemuck::cast_slice(&verts),
+                        usage:    wgpu::BufferUsages::VERTEX,
+                    },
+                );
+                pass.set_vertex_buffer(0, vbuf.slice(..));
                 pass.set_bind_group(1, &tex.bind_group, &[]);
                 pass.draw_indexed(0..6, 0, 0..1);
             }

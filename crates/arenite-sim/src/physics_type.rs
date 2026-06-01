@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 /// How a pixel participates in the cellular automata simulation.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum PhysicsType {
     /// Empty space — air.  The absence of matter.
+    #[default]
     Air     = 0,
 
     /// Immovable solid (rock, dirt walls).
@@ -65,6 +66,4 @@ impl PhysicsType {
     }
 }
 
-impl Default for PhysicsType {
-    fn default() -> Self { Self::Air }
-}
+

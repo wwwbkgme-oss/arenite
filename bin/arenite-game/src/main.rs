@@ -25,7 +25,7 @@ use anyhow::Result;
 use log::info;
 use winit::{
     application::ApplicationHandler,
-    event::{DeviceEvent, KeyEvent, MouseButton, WindowEvent},
+    event::{KeyEvent, MouseButton, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowAttributes, WindowId},
@@ -44,8 +44,10 @@ struct GameConfig {
     world_width:  i32,
     world_height: i32,
     world_seed:   u64,
+    #[allow(dead_code)]
     player_name:  String,
     #[serde(default)]
+    #[allow(dead_code)]
     server:       Option<String>,
 }
 
@@ -141,9 +143,10 @@ struct AreniteApp {
     placing: bool, removing: bool,
 
     // Timing.
-    last_tick: Instant,
+    last_tick:  Instant,
     tick_accum: Duration,
-    config: GameConfig,
+    #[allow(dead_code)]
+    config:     GameConfig,
 }
 
 impl AreniteApp {

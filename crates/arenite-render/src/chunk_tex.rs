@@ -1,4 +1,4 @@
-use wgpu::util::DeviceExt;
+
 use arenite_core::pos::{ChunkPos, CHUNK_SIZE, CHUNK_AREA};
 use arenite_sim::chunk::ChunkData;
 

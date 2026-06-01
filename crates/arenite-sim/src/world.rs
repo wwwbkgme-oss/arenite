@@ -1,7 +1,7 @@
 use std::cell::UnsafeCell;
 use ahash::AHashMap;
 use arenite_core::pos::{ChunkPos, TilePos, CHUNK_SIZE};
-use crate::chunk::{Chunk, ChunkData};
+use crate::chunk::ChunkData;
 use crate::material::MaterialInstance;
 use crate::particle::Particle;
 use crate::simulator::{SimContext, Simulator};
@@ -54,7 +54,7 @@ impl SimWorld {
     // ── Chunk management ──────────────────────────────────────────────────
 
     pub fn is_loaded(&self, pos: ChunkPos) -> bool {
-        self.meta.get(&pos).map_or(false, |m| m.loaded)
+        self.meta.get(&pos).is_some_and(|m| m.loaded)
     }
 
     /// Insert a freshly-generated chunk into the world.
@@ -133,11 +133,12 @@ impl SimWorld {
             .map(|m| m.pos)
             .collect();
 
-        // Process each active chunk sequentially (parallel version needs
-        // non-overlapping quads; kept simple here for correctness).
+        // Process each active chunk sequentially; collect spawned particles.
+        let mut new_particles: Vec<Particle> = Vec::new();
         for &cp in &active {
-            self.tick_one_chunk(cp, t);
+            self.tick_one_chunk_and_collect(cp, t, &mut new_particles);
         }
+        self.particles.append(&mut new_particles);
 
         // Tick particles.
         let chunks = &self.chunks;
@@ -160,7 +161,7 @@ impl SimWorld {
         });
     }
 
-    fn tick_one_chunk(&self, cp: ChunkPos, tick: u64) {
+    fn tick_one_chunk(&self, cp: ChunkPos, tick: u64) -> Vec<Particle> {
         // Build the 3×3 neighbourhood.
         let neighbours: [Option<&UnsafeCell<ChunkData>>; 9] = {
             let offsets: [(i32, i32); 9] = [
@@ -176,12 +177,25 @@ impl SimWorld {
             arr
         };
 
-        // SAFETY: In a real parallel version we guarantee each chunk is only
-        // written by one task.  Here we run sequentially so there is no aliasing.
+        // SAFETY: Sequential execution — no aliasing between chunks in this impl.
+        // The quad-parallel scheduler (T-015) adds the non-overlapping guarantee
+        // for parallel execution.
         let mut particles_local: Vec<Particle> = Vec::new();
         let mut ctx = SimContext::new(neighbours, &mut particles_local);
         Simulator::tick_chunk(&mut ctx, tick);
-        // (In a real impl, particles_local would be merged back into self.particles.)
+        particles_local
+    }
+
+    /// Tick one chunk and collect any spawned particles.
+    /// Called by tick_simulation; merges particles back into self.particles.
+    fn tick_one_chunk_and_collect(
+        &self,
+        cp:   ChunkPos,
+        tick: u64,
+        out:  &mut Vec<Particle>,
+    ) {
+        let mut spawned = self.tick_one_chunk(cp, tick);
+        out.append(&mut spawned);
     }
 
     // ── Statistics ────────────────────────────────────────────────────────

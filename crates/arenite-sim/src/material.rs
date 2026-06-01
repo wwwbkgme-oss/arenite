@@ -1,4 +1,4 @@
-use arenite_core::{Color, id::StringId};
+use arenite_core::Color;
 use arenite_core::registry::Registry;
 use serde::{Deserialize, Serialize};
 use crate::physics_type::PhysicsType;

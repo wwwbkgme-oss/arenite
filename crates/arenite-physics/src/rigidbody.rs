@@ -3,7 +3,7 @@ use arenite_core::pos::TilePos;
 use arenite_sim::SimWorld;
 use arenite_sim::material::MaterialInstance;
 use arenite_sim::physics_type::PhysicsType;
-use crate::physics::{PhysicsWorld, PHYSICS_SCALE};
+use crate::physics::PhysicsWorld;
 
 /// A game entity backed by a rapier2d rigidbody.
 ///
