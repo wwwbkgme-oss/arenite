@@ -18,4 +18,9 @@ log.workspace          = true
 ahash.workspace        = true
 
 [dev-dependencies]
-tempfile = "3"
+tempfile  = "3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name    = "sim_bench"
+harness = false

@@ -21,6 +21,12 @@ pub struct Material {
     pub spread_rate: u8,
     /// Colour jitter amount for variety.
     pub color_jitter: u8,
+    /// Whether fire can spread to this material (T-035).
+    /// True for wood, grass, oil and similar combustibles.
+    pub flammable: bool,
+    /// Hardness: dig resistance (0 = instant, 255 = indestructible-ish).
+    /// Influences how quickly tools can remove this tile.
+    pub hardness: u8,
 }
 
 impl Material {
@@ -34,6 +40,8 @@ impl Material {
             viscosity:       0.0,
             spread_rate:     0,
             color_jitter:    10,
+            flammable:       false,
+            hardness:        20,
         }
     }
 }
@@ -47,6 +55,8 @@ pub struct MaterialBuilder {
     viscosity:       f32,
     spread_rate:     u8,
     color_jitter:    u8,
+    flammable:       bool,
+    hardness:        u8,
 }
 
 impl MaterialBuilder {
@@ -57,6 +67,10 @@ impl MaterialBuilder {
     pub fn viscosity(mut self, v: f32) -> Self { self.viscosity = v; self }
     pub fn spread_rate(mut self, s: u8) -> Self { self.spread_rate = s; self }
     pub fn jitter(mut self, j: u8) -> Self { self.color_jitter = j; self }
+    /// Mark this material as combustible — fire will spread to it (T-035).
+    pub fn flammable(mut self) -> Self { self.flammable = true; self }
+    /// Set dig hardness (0 = instant, 255 ≈ bedrock).
+    pub fn hardness(mut self, h: u8) -> Self { self.hardness = h; self }
 
     pub fn build(self) -> Material {
         Material {
@@ -68,6 +82,8 @@ impl MaterialBuilder {
             viscosity:       self.viscosity,
             spread_rate:     self.spread_rate,
             color_jitter:    self.color_jitter,
+            flammable:       self.flammable,
+            hardness:        self.hardness,
         }
     }
 }
@@ -83,6 +99,17 @@ pub struct MaterialInstance {
     pub light:   [f32; 3],
     /// Generic simulation data: temperature, lifetime, etc.
     pub data:    u16,
+}
+
+/// Bit flags stored in the upper byte of `MaterialInstance::data`.
+/// The lower byte is available for material-specific simulation state
+/// (lifetime, temperature, etc.).
+pub mod flags {
+    /// Bit 15: this pixel can catch fire (T-035).
+    /// Set for wood, grass, oil, and any other combustible material.
+    pub const FLAMMABLE: u16 = 0x8000;
+    /// Bit 14: this pixel is currently on fire (used by acid corrosion future).
+    pub const BURNING:   u16 = 0x4000;
 }
 
 impl MaterialInstance {
@@ -109,6 +136,34 @@ impl MaterialInstance {
     pub fn is_dynamic(self) -> bool {
         self.physics.is_dynamic()
     }
+
+    /// True if fire can spread to this pixel (T-035).
+    /// The FLAMMABLE bit is set at world-gen / construction time for
+    /// combustible materials (wood, grass, oil).
+    #[inline]
+    pub fn is_flammable(self) -> bool {
+        self.data & flags::FLAMMABLE != 0
+    }
+
+    /// Return a copy of `self` with the FLAMMABLE bit set.
+    #[inline]
+    pub fn with_flammable(mut self) -> Self {
+        self.data |= flags::FLAMMABLE;
+        self
+    }
+
+    /// Return simulation lifetime stored in the lower byte of `data`.
+    #[inline]
+    pub fn lifetime(self) -> u8 {
+        self.data as u8
+    }
+
+    /// Return a copy with the lower-byte lifetime set to `v`.
+    #[inline]
+    pub fn with_lifetime(mut self, v: u8) -> Self {
+        self.data = (self.data & 0xFF00) | v as u16;
+        self
+    }
 }
 
 impl Default for MaterialInstance {
@@ -116,6 +171,31 @@ impl Default for MaterialInstance {
 }
 
 pub type MaterialRegistry = Registry<Material>;
+
+impl Material {
+    /// Create a `MaterialInstance` from this material definition.
+    ///
+    /// `id` is the numeric registry ID returned by `Registry::register`.
+    /// Sets the `FLAMMABLE` flag from `self.flammable`.
+    pub fn to_instance(&self, id: u16) -> MaterialInstance {
+        MaterialInstance {
+            id,
+            physics: self.default_physics,
+            color:   self.base_color,
+            light:   self.emission,
+            data:    if self.flammable { flags::FLAMMABLE } else { 0 },
+        }
+    }
+}
+
+/// Look up a material by string key and return a ready `MaterialInstance`.
+/// Returns `None` if the key is not registered.
+pub fn make_instance(registry: &MaterialRegistry, key: &str) -> Option<MaterialInstance> {
+    let sid = arenite_core::id::StringId::from(key);
+    let id  = registry.id_of(&sid)?;
+    let mat = registry.get_by_id(id)?;
+    Some(mat.to_instance(id.raw() as u16))
+}
 
 /// Build the default set of materials for the base game.
 pub fn default_material_registry() -> MaterialRegistry {
@@ -203,6 +283,8 @@ pub fn default_material_registry() -> MaterialRegistry {
         .color(Color::GRASS)
         .density(1400.0)
         .jitter(12)
+        .flammable()       // Grass burns — T-035
+        .hardness(10)
         .build());
 
     r.register("snow",    Material::builder("Snow")
@@ -210,6 +292,7 @@ pub fn default_material_registry() -> MaterialRegistry {
         .color(Color::SNOW)
         .density(300.0)
         .jitter(8)
+        .hardness(5)
         .build());
 
     r.register("wood",    Material::builder("Wood")
@@ -217,6 +300,8 @@ pub fn default_material_registry() -> MaterialRegistry {
         .color(Color::WOOD)
         .density(600.0)
         .jitter(10)
+        .flammable()       // Wood burns — T-035
+        .hardness(30)
         .build());
 
     r.register("gold_ore", Material::builder("Gold Ore")
@@ -225,6 +310,7 @@ pub fn default_material_registry() -> MaterialRegistry {
         .density(3000.0)
         .emission([0.05, 0.04, 0.0])
         .jitter(5)
+        .hardness(60)
         .build());
 
     r.register("iron_ore", Material::builder("Iron Ore")
@@ -232,6 +318,119 @@ pub fn default_material_registry() -> MaterialRegistry {
         .color(Color::IRON_ORE)
         .density(2900.0)
         .jitter(8)
+        .hardness(55)
+        .build());
+
+    // ── New materials — Terraria / Starbound / re-flora inspired ─────────
+
+    // Clay: found near water bodies; yields clay items when mined (SDV, Terraria).
+    r.register("clay",   Material::builder("Clay")
+        .physics(PhysicsType::Solid)
+        .color(Color::CLAY)
+        .density(1700.0)
+        .jitter(10)
+        .hardness(18)
+        .build());
+
+    // Mud: jungle floor material; mushrooms grow on it (Terraria mud).
+    r.register("mud",    Material::builder("Mud")
+        .physics(PhysicsType::Solid)
+        .color(Color::MUD)
+        .density(1550.0)
+        .jitter(20)
+        .hardness(12)
+        .build());
+
+    // Obsidian: extremely hard volcanic glass; formed when lava meets water (T-034).
+    r.register("obsidian", Material::builder("Obsidian")
+        .physics(PhysicsType::Solid)
+        .color(Color::OBSIDIAN)
+        .density(3200.0)
+        .jitter(4)
+        .hardness(180)
+        .build());
+
+    // Oil: dark flammable liquid; floats on water (less dense); Starbound fuel.
+    r.register("oil",    Material::builder("Oil")
+        .physics(PhysicsType::Liquid)
+        .color(Color::OIL)
+        .density(850.0)     // lighter than water → floats
+        .spread_rate(4)
+        .viscosity(0.5)
+        .jitter(8)
+        .flammable()        // Oil burns — T-035
+        .hardness(0)
+        .build());
+
+    // Acid: corrosive green liquid; high spread; Starbound alien biomes.
+    r.register("acid",   Material::builder("Acid")
+        .physics(PhysicsType::Liquid)
+        .color(Color::ACID)
+        .density(1100.0)
+        .spread_rate(7)
+        .viscosity(0.15)
+        .emission([0.0, 0.2, 0.0])
+        .jitter(15)
+        .hardness(0)
+        .build());
+
+    // Ice: granular powder physics; slides downhill; cold biome surface.
+    // Behaves like Sand but much lighter (Terraria ice block).
+    r.register("ice",    Material::builder("Ice")
+        .physics(PhysicsType::Sand)
+        .color(Color::ICE)
+        .density(920.0)     // slightly lighter than water → floats when melted
+        .jitter(5)
+        .hardness(15)
+        .build());
+
+    // Crystal: emissive translucent solid; Starbound crystal cave biome.
+    r.register("crystal", Material::builder("Crystal")
+        .physics(PhysicsType::Solid)
+        .color(Color::CRYSTAL)
+        .density(2200.0)
+        .emission([0.0, 0.6, 0.9])
+        .jitter(12)
+        .hardness(70)
+        .build());
+
+    // Mushroom block: spongy purple solid; Terraria glowing mushroom biome.
+    r.register("mushroom_block", Material::builder("Mushroom Block")
+        .physics(PhysicsType::Solid)
+        .color(Color::MUSHROOM)
+        .density(500.0)
+        .emission([0.05, 0.0, 0.1])
+        .jitter(15)
+        .hardness(12)
+        .build());
+
+    // Copper ore: reddish-orange metallic ore (Terraria / Starbound tier-1).
+    r.register("copper_ore", Material::builder("Copper Ore")
+        .physics(PhysicsType::Solid)
+        .color(Color::COPPER_ORE)
+        .density(2800.0)
+        .jitter(10)
+        .hardness(45)
+        .build());
+
+    // Titanium ore: silver-white high-tier ore (Starbound tier-3).
+    r.register("titanium_ore", Material::builder("Titanium Ore")
+        .physics(PhysicsType::Solid)
+        .color(Color::TITANIUM)
+        .density(4000.0)
+        .emission([0.03, 0.03, 0.05])
+        .jitter(6)
+        .hardness(120)
+        .build());
+
+    // Diamond: rare deep gem; Terraria / Starbound precious gem.
+    r.register("diamond", Material::builder("Diamond")
+        .physics(PhysicsType::Solid)
+        .color(Color::DIAMOND)
+        .density(3500.0)
+        .emission([0.1, 0.15, 0.2])
+        .jitter(3)
+        .hardness(150)
         .build());
 
     r

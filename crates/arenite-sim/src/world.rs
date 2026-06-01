@@ -6,10 +6,12 @@ use crate::material::MaterialInstance;
 use crate::particle::Particle;
 use crate::simulator::{SimContext, Simulator};
 
-/// Radius of chunks kept active around the player.
-pub const ACTIVE_RADIUS: i32 = 4;
-/// Radius of loaded-but-sleeping chunks.
-pub const LOAD_RADIUS:   i32 = 8;
+/// Radius of chunks kept active around the player (fully simulated).
+pub const ACTIVE_RADIUS:  i32 = 4;
+/// Radius of loaded-but-sleeping chunks (kept in memory, not simulated).
+pub const LOAD_RADIUS:    i32 = 8;
+/// Chunks farther than this are evicted from memory entirely (T-047).
+pub const UNLOAD_RADIUS:  i32 = 12;
 
 /// The simulation world: owns all chunks and drives tick-by-tick updates.
 ///
@@ -73,13 +75,22 @@ impl SimWorld {
         self.meta.remove(&pos);
     }
 
-    /// Update which chunks are active based on player position.
+    /// Update chunk active/loaded flags and evict far-away chunks (T-047).
     pub fn update_load_state(&mut self, player_chunk: ChunkPos) {
         self.player_chunk = player_chunk;
         for meta in self.meta.values_mut() {
             let dist = meta.pos.manhattan_distance(player_chunk);
             meta.active = dist <= ACTIVE_RADIUS;
             meta.loaded = dist <= LOAD_RADIUS;
+        }
+        // T-047: Evict chunks beyond UNLOAD_RADIUS.
+        let evict: Vec<ChunkPos> = self.meta.iter()
+            .filter(|(_, m)| m.pos.manhattan_distance(player_chunk) > UNLOAD_RADIUS)
+            .map(|(pos, _)| *pos)
+            .collect();
+        for pos in evict {
+            self.chunks.remove(&pos);
+            self.meta.remove(&pos);
         }
     }
 
@@ -138,6 +149,10 @@ impl SimWorld {
         let mut new_particles: Vec<Particle> = Vec::with_capacity(64);
         for phase in &phases {
             for &cp in phase {
+                // T-048: skip fully-static chunks (no dynamic pixels).
+                if let Some(cell) = self.chunks.get(&cp) {
+                    if unsafe { (*cell.get()).dynamic_count == 0 } { continue; }
+                }
                 let mut spawned = self.tick_one_chunk(cp, t);
                 new_particles.append(&mut spawned);
             }

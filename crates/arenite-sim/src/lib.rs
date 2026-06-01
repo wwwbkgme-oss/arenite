@@ -22,7 +22,7 @@ pub mod world;
 pub mod particle;
 
 pub use chunk::{Chunk, ChunkData};
-pub use material::{Material, MaterialInstance, MaterialRegistry};
+pub use material::{Material, MaterialInstance, MaterialRegistry, make_instance};
 pub use physics_type::PhysicsType;
 pub use save::{save_world, load_world};
 pub use simulator::Simulator;
