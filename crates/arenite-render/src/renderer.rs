@@ -9,18 +9,26 @@ use crate::lighting::LightPropagator;
 use crate::pipeline::WorldPipeline;
 use crate::vertex::Vertex2D;
 
-/// Top-level renderer that manages the wgpu surface, pipelines,
+/// Top-level renderer — manages wgpu surface, pipelines,
 /// chunk textures, and per-frame draw calls.
 pub struct AreniteRenderer {
-    pub device:   Arc<wgpu::Device>,
-    pub queue:    Arc<wgpu::Queue>,
-    surface:      wgpu::Surface<'static>,
-    surface_cfg:  wgpu::SurfaceConfiguration,
-    world_pipe:   WorldPipeline,
-    chunk_textures: AHashMap<ChunkPos, ChunkTexture>,
-    quad_ibuf:    wgpu::Buffer,
-    pub camera:   Camera2D,
-    pub lighting: LightPropagator,
+    pub device:         Arc<wgpu::Device>,
+    pub queue:          Arc<wgpu::Queue>,
+    surface:            wgpu::Surface<'static>,
+    surface_cfg:        wgpu::SurfaceConfiguration,
+    world_pipe:         WorldPipeline,
+    chunk_textures:     AHashMap<ChunkPos, ChunkTexture>,
+    /// Shared index buffer for the unit quad (0,0)→(1,1).
+    quad_ibuf:          wgpu::Buffer,
+    /// Pre-allocated vertex buffer for all chunk quads — rebuilt when chunk set changes.
+    /// Layout: [Vertex2D × 4] per visible chunk, in the same order as `draw_order`.
+    chunk_vbuf:         Option<wgpu::Buffer>,
+    /// Chunk positions in draw order (matches `chunk_vbuf`).
+    draw_order:         Vec<ChunkPos>,
+    /// Set of chunk positions in the last vbuf build; used to detect changes.
+    vbuf_generation:    u64,
+    pub camera:         Camera2D,
+    pub lighting:       LightPropagator,
 }
 
 impl AreniteRenderer {
@@ -31,7 +39,7 @@ impl AreniteRenderer {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends:             wgpu::Backends::all(),
+            backends: wgpu::Backends::all(),
             ..Default::default()
         });
 
@@ -70,8 +78,8 @@ impl AreniteRenderer {
         let surface_cfg = wgpu::SurfaceConfiguration {
             usage:        wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
-            width:        size.width,
-            height:       size.height,
+            width:        size.width.max(1),
+            height:       size.height.max(1),
             present_mode: wgpu::PresentMode::AutoVsync,
             alpha_mode:   caps.alpha_modes[0],
             view_formats: vec![],
@@ -81,8 +89,8 @@ impl AreniteRenderer {
 
         let world_pipe = WorldPipeline::new(&device, format);
 
-        // Index buffer for the quad (shared; vertices are per-chunk).
-        let quad_ibuf  = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        // Shared index buffer (6 indices for one quad, reused for all chunks).
+        let quad_ibuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label:    Some("quad_ibuf"),
             contents: bytemuck::cast_slice(&Vertex2D::QUAD_INDICES),
             usage:    wgpu::BufferUsages::INDEX,
@@ -96,10 +104,13 @@ impl AreniteRenderer {
             surface,
             surface_cfg,
             world_pipe,
-            chunk_textures: AHashMap::default(),
+            chunk_textures:  AHashMap::default(),
             quad_ibuf,
+            chunk_vbuf:      None,
+            draw_order:      Vec::new(),
+            vbuf_generation: 0,
             camera,
-            lighting: LightPropagator::default(),
+            lighting:        LightPropagator::default(),
         })
     }
 
@@ -113,11 +124,12 @@ impl AreniteRenderer {
     }
 
     /// Sync chunk textures from the sim world.
-    /// Only uploads dirty chunks.
+    /// Only re-uploads dirty chunks; creates new textures for newly loaded chunks.
     pub fn sync_chunks(&mut self, world: &SimWorld) {
+        let mut changed = false;
+
         for (&pos, cell) in &world.chunks {
-            // SAFETY: we hold the only reference during the render-prep phase,
-            // which runs between sim ticks on the main thread.
+            // SAFETY: render-prep runs between sim ticks on the same thread.
             let data = unsafe { &mut *cell.get() };
 
             if let Some(tex) = self.chunk_textures.get(&pos) {
@@ -126,7 +138,6 @@ impl AreniteRenderer {
                     data.dirty = arenite_sim::chunk::DirtyRect::clean();
                 }
             } else {
-                // New chunk — create texture.
                 let tex = ChunkTexture::new(
                     pos,
                     &self.device,
@@ -134,18 +145,57 @@ impl AreniteRenderer {
                     &self.world_pipe.chunk_bind_layout,
                     data,
                 );
+                // Mark clean immediately after first upload.
+                data.dirty = arenite_sim::chunk::DirtyRect::clean();
                 self.chunk_textures.insert(pos, tex);
+                changed = true;
             }
         }
 
-        // Remove textures for unloaded chunks.
+        // Evict textures for chunks no longer in the world.
+        let before = self.chunk_textures.len();
         self.chunk_textures.retain(|pos, _| world.chunks.contains_key(pos));
+        if self.chunk_textures.len() != before { changed = true; }
+
+        // Rebuild draw-order + vertex buffer when chunk set changes.
+        if changed || self.chunk_vbuf.is_none() {
+            self.rebuild_chunk_vbuf();
+        }
     }
 
-    /// Render one frame.
+    /// Build one vertex buffer covering all loaded chunks (4 verts × N chunks).
+    /// The buffer is rebuild only when chunks are added/removed — not every frame.
+    fn rebuild_chunk_vbuf(&mut self) {
+        self.draw_order = self.chunk_textures.keys().copied().collect();
+        // Sort for deterministic draw order (helps avoid z-fighting on tile edges).
+        self.draw_order.sort_unstable_by_key(|p| (p.y, p.x));
+
+        if self.draw_order.is_empty() {
+            self.chunk_vbuf = None;
+            return;
+        }
+
+        let mut verts: Vec<Vertex2D> = Vec::with_capacity(self.draw_order.len() * 4);
+        for &pos in &self.draw_order {
+            let ox = (pos.x * CHUNK_SIZE) as f32;
+            let oy = (pos.y * CHUNK_SIZE) as f32;
+            verts.extend_from_slice(&Vertex2D::quad(ox, oy, CHUNK_SIZE as f32, CHUNK_SIZE as f32));
+        }
+
+        self.chunk_vbuf = Some(self.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label:    Some("chunk_vbuf"),
+                contents: bytemuck::cast_slice(&verts),
+                usage:    wgpu::BufferUsages::VERTEX,
+            },
+        ));
+        self.vbuf_generation += 1;
+    }
+
+    /// Render one frame.  Returns `Err(SurfaceError)` on swapchain problems.
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let frame  = self.surface.get_current_texture()?;
-        let view   = frame.texture.create_view(&Default::default());
+        let frame = self.surface.get_current_texture()?;
+        let view  = frame.texture.create_view(&Default::default());
 
         self.world_pipe.update_camera(&self.queue, self.camera.view_proj());
 
@@ -161,7 +211,7 @@ impl AreniteRenderer {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load:  wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.05, g: 0.05, b: 0.08, a: 1.0,
+                            r: 0.22, g: 0.36, b: 0.58, a: 1.0, // sky-blue background
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -171,30 +221,20 @@ impl AreniteRenderer {
                 occlusion_query_set:      None,
             });
 
-            pass.set_pipeline(&self.world_pipe.pipeline);
-            pass.set_bind_group(0, &self.world_pipe.camera_bind_group, &[]);
-            pass.set_index_buffer(self.quad_ibuf.slice(..), wgpu::IndexFormat::Uint16);
-
-            // Draw each visible chunk as a textured quad at its world-space position.
-            // We write per-chunk vertex data into a temporary buffer each frame.
-            // This is simple and correct; a future optimisation would use a persistent
-            // instance buffer updated only when chunks load/unload (T-034).
-            for (pos, tex) in &self.chunk_textures {
-                let ox = (pos.x * CHUNK_SIZE) as f32;
-                let oy = (pos.y * CHUNK_SIZE) as f32;
-                let verts = Vertex2D::quad(ox, oy, CHUNK_SIZE as f32, CHUNK_SIZE as f32);
-
-                // Upload per-chunk vertices then draw.
-                let vbuf = self.device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label:    Some("chunk_quad_vbuf"),
-                        contents: bytemuck::cast_slice(&verts),
-                        usage:    wgpu::BufferUsages::VERTEX,
-                    },
-                );
+            if let Some(vbuf) = &self.chunk_vbuf {
+                pass.set_pipeline(&self.world_pipe.pipeline);
+                pass.set_bind_group(0, &self.world_pipe.camera_bind_group, &[]);
+                pass.set_index_buffer(self.quad_ibuf.slice(..), wgpu::IndexFormat::Uint16);
+                // T-016 fix: vbuf and draw_order are stored on self and outlive the pass.
                 pass.set_vertex_buffer(0, vbuf.slice(..));
-                pass.set_bind_group(1, &tex.bind_group, &[]);
-                pass.draw_indexed(0..6, 0, 0..1);
+
+                for (i, pos) in self.draw_order.iter().enumerate() {
+                    if let Some(tex) = self.chunk_textures.get(pos) {
+                        let base_vertex = (i * 4) as i32;
+                        pass.set_bind_group(1, &tex.bind_group, &[]);
+                        pass.draw_indexed(0..6, base_vertex, 0..1);
+                    }
+                }
             }
         }
 
