@@ -10,7 +10,8 @@ repository.workspace = true
 [dependencies]
 arenite-core.workspace = true
 arenite-sim.workspace  = true
-rapier2d.workspace     = true
+rapier2d.workspace          = true
+crossbeam-channel.workspace = true
 serde.workspace        = true
 log.workspace          = true
 ahash.workspace        = true

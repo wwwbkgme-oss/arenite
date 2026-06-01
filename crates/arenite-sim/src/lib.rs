@@ -19,7 +19,6 @@ pub mod physics_type;
 pub mod simulator;
 pub mod world;
 pub mod particle;
-pub mod dirty_rect;
 
 pub use chunk::{Chunk, ChunkData};
 pub use material::{Material, MaterialInstance, MaterialRegistry};

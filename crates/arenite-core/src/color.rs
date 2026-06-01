@@ -65,7 +65,7 @@ impl Color {
 
     /// Add small random jitter for visual variety (keeps pixel art feeling alive).
     pub fn jitter(self, rng: &mut impl rand::Rng, amount: u8) -> Self {
-        let jit = |v: u8| {
+        let mut jit = |v: u8| {
             let delta = rng.gen_range(0..=amount as i16) - (amount / 2) as i16;
             (v as i16 + delta).clamp(0, 255) as u8
         };

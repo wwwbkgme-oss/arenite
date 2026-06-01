@@ -18,8 +18,6 @@ pub struct PhysicsWorld {
     pub ccd_solver:         CCDSolver,
     pub query_pipeline:     QueryPipeline,
     pub physics_pipeline:   PhysicsPipeline,
-    /// Event collector for collision callbacks.
-    pub collision_events:   Vec<CollisionEvent>,
 }
 
 impl PhysicsWorld {
@@ -37,19 +35,14 @@ impl PhysicsWorld {
             ccd_solver:         CCDSolver::new(),
             query_pipeline:     QueryPipeline::new(),
             physics_pipeline:   PhysicsPipeline::new(),
-            collision_events:   Vec::new(),
         }
     }
 
     /// Step the physics simulation by `dt` seconds.
+    /// Pass `&()` as the event handler — rapier2d 0.21 accepts the unit type
+    /// as a no-op handler that satisfies `EventHandler + ContactModificationHandler`.
     pub fn step(&mut self, dt: f32) {
         self.integration_params.dt = dt;
-        self.collision_events.clear();
-
-        let mut event_handler = ChannelEventCollector::new(
-            crossbeam_channel::unbounded().0,
-            crossbeam_channel::unbounded().0,
-        );
 
         self.physics_pipeline.step(
             &self.gravity,
@@ -64,7 +57,7 @@ impl PhysicsWorld {
             &mut self.ccd_solver,
             Some(&mut self.query_pipeline),
             &(),
-            &event_handler,
+            &(),
         );
     }
 

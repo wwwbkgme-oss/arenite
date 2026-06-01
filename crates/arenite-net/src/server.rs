@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use log::{info, warn};
@@ -14,6 +15,7 @@ pub struct ConnectedPlayer {
     pub id:   u32,
     pub name: String,
     pub addr: SocketAddr,
+    /// Send a message to this player's write task.
     pub tx:   mpsc::UnboundedSender<NetMessage>,
 }
 
@@ -23,7 +25,7 @@ pub type ServerPlayerMap = Arc<Mutex<HashMap<u32, ConnectedPlayer>>>;
 pub struct GameServer {
     pub addr:    SocketAddr,
     pub players: ServerPlayerMap,
-    next_id: Arc<Mutex<u32>>,
+    next_id:     Arc<Mutex<u32>>,
 }
 
 impl GameServer {
@@ -35,7 +37,7 @@ impl GameServer {
         }
     }
 
-    /// Run the server event loop (call with tokio::spawn or #[tokio::main]).
+    /// Run the server accept loop (spawn with `tokio::spawn` or `#[tokio::main]`).
     pub async fn run(
         self,
         world_seed:   u64,
@@ -49,13 +51,12 @@ impl GameServer {
             let (stream, addr) = listener.accept().await?;
             info!("Client connected from {}", addr);
 
-            let players_ref  = Arc::clone(&self.players);
-            let next_id_ref  = Arc::clone(&self.next_id);
+            let players = Arc::clone(&self.players);
+            let next_id = Arc::clone(&self.next_id);
 
             tokio::spawn(async move {
-                if let Err(e) = Self::handle_client(
-                    stream, addr,
-                    players_ref, next_id_ref,
+                if let Err(e) = handle_client(
+                    stream, addr, players, next_id,
                     world_seed, world_width, world_height,
                 ).await {
                     warn!("Client {} error: {}", addr, e);
@@ -63,120 +64,134 @@ impl GameServer {
             });
         }
     }
+}
 
-    async fn handle_client(
-        mut stream:     TcpStream,
-        addr:           SocketAddr,
-        players:        ServerPlayerMap,
-        next_id_ref:    Arc<Mutex<u32>>,
-        world_seed:     u64,
-        world_width:    i32,
-        world_height:   i32,
-    ) -> anyhow::Result<()> {
-        // Expect Hello.
-        let hello = read_message(&mut stream).await?;
-        let player_name = match hello {
-            NetMessage::Hello { protocol_version, player_name }
-                if protocol_version == PROTOCOL_VERSION => player_name,
-            NetMessage::Hello { protocol_version, .. } => {
-                write_message(&mut stream, &NetMessage::Reject {
-                    reason: format!(
-                        "Protocol version mismatch: client={} server={}",
-                        protocol_version, PROTOCOL_VERSION
-                    ),
-                }).await?;
-                return Ok(());
-            }
-            _ => {
-                write_message(&mut stream, &NetMessage::Reject {
-                    reason: "Expected Hello".into()
-                }).await?;
-                return Ok(());
-            }
-        };
-
-        // Assign player ID.
-        let player_id = {
-            let mut id = next_id_ref.lock().unwrap();
-            let cur = *id;
-            *id += 1;
-            cur
-        };
-
-        // Send Welcome.
-        write_message(&mut stream, &NetMessage::Welcome {
-            player_id,
-            world_seed,
-            world_width,
-            world_height,
-            spawn_x: world_width  as f32 * 0.5,
-            spawn_y: world_height as f32 * 0.35,
-        }).await?;
-
-        info!("Player '{}' joined as id={}", player_name, player_id);
-
-        // Notify existing players.
+async fn handle_client(
+    mut stream:   TcpStream,
+    addr:         SocketAddr,
+    players:      ServerPlayerMap,
+    next_id_ref:  Arc<Mutex<u32>>,
+    world_seed:   u64,
+    world_width:  i32,
+    world_height: i32,
+) -> anyhow::Result<()> {
+    // ── Handshake ──────────────────────────────────────────────────────────
+    let player_name = match read_message(&mut stream).await? {
+        NetMessage::Hello { protocol_version, player_name }
+            if protocol_version == PROTOCOL_VERSION =>
         {
-            let ps = players.lock().unwrap();
-            for p in ps.values() {
-                let _ = p.tx.send(NetMessage::PlayerJoined {
-                    player_id,
-                    name: player_name.clone(),
-                });
-            }
+            player_name
         }
-
-        // Register player.
-        let (tx, mut rx) = mpsc::unbounded_channel::<NetMessage>();
-        {
-            let mut ps = players.lock().unwrap();
-            ps.insert(player_id, ConnectedPlayer {
-                id:   player_id,
-                name: player_name.clone(),
-                addr,
-                tx,
-            });
+        NetMessage::Hello { protocol_version, .. } => {
+            write_message(&mut stream, &NetMessage::Reject {
+                reason: format!(
+                    "Protocol mismatch: client={} server={}",
+                    protocol_version, PROTOCOL_VERSION
+                ),
+            }).await?;
+            return Ok(());
         }
+        other => {
+            write_message(&mut stream, &NetMessage::Reject {
+                reason: format!("Expected Hello, got {:?}", other),
+            }).await?;
+            return Ok(());
+        }
+    };
 
-        // Main message loop.
-        let (reader_half, writer_half) = stream.into_split();
-        let mut reader = tokio::net::tcp::OwnedReadHalf::from(reader_half);
-        let mut writer = tokio::net::tcp::OwnedWriteHalf::from(writer_half);
+    let player_id = {
+        let mut id = next_id_ref.lock().unwrap();
+        let cur = *id;
+        *id     += 1;
+        cur
+    };
 
-        let players_clone = Arc::clone(&players);
-        let write_task = tokio::spawn(async move {
-            while let Some(msg) = rx.recv().await {
-                let bytes = bincode::serialize(&msg).unwrap_or_default();
-                let len   = bytes.len() as u32;
-                if writer.write_all(&len.to_le_bytes()).await.is_err() { break; }
-                if writer.write_all(&bytes).await.is_err() { break; }
-            }
+    write_message(&mut stream, &NetMessage::Welcome {
+        player_id,
+        world_seed,
+        world_width,
+        world_height,
+        spawn_x: world_width  as f32 * 0.5,
+        spawn_y: world_height as f32 * 0.35,
+    }).await?;
+
+    info!("Player '{}' joined (id={})", player_name, player_id);
+
+    // Notify existing players.
+    broadcast_except(&players, player_id, NetMessage::PlayerJoined {
+        player_id, name: player_name.clone(),
+    });
+
+    // ── Per-client channels ────────────────────────────────────────────────
+    let (tx, mut rx) = mpsc::unbounded_channel::<NetMessage>();
+    {
+        players.lock().unwrap().insert(player_id, ConnectedPlayer {
+            id:   player_id,
+            name: player_name.clone(),
+            addr,
+            tx,
         });
+    }
 
-        // Read loop.
-        let mut reader_stream = TcpStream::from_std(
-            std::net::TcpStream::connect(addr)?
-        )?;
+    // Split the TcpStream into independent halves.
+    let (mut reader, mut writer) = stream.into_split();
 
-        loop {
-            match read_message(&mut reader_stream).await {
-                Ok(NetMessage::Disconnect) | Err(_) => break,
-                Ok(msg) => {
-                    // In a full implementation: route to game logic.
-                    let _ = msg;
+    let players_clone = Arc::clone(&players);
+
+    // ── Write task ─────────────────────────────────────────────────────────
+    let write_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            match bincode::serialize(&msg) {
+                Ok(bytes) => {
+                    let len = bytes.len() as u32;
+                    if writer.write_all(&len.to_le_bytes()).await.is_err() { break; }
+                    if writer.write_all(&bytes).await.is_err() { break; }
                 }
+                Err(e) => warn!("Serialise error: {}", e),
             }
         }
+    });
 
-        write_task.abort();
-        {
-            let mut ps = players_clone.lock().unwrap();
-            ps.remove(&player_id);
-            for p in ps.values() {
-                let _ = p.tx.send(NetMessage::PlayerLeft { player_id });
+    // ── Read loop ──────────────────────────────────────────────────────────
+    loop {
+        let mut len_buf = [0u8; 4];
+        match reader.read_exact(&mut len_buf).await {
+            Ok(_)  => {}
+            Err(_) => break,
+        }
+        let len = u32::from_le_bytes(len_buf) as usize;
+        let mut buf = vec![0u8; len];
+        if reader.read_exact(&mut buf).await.is_err() { break; }
+
+        match bincode::deserialize::<NetMessage>(&buf) {
+            Ok(NetMessage::Disconnect) => break,
+            Ok(msg) => {
+                // TODO: route input/chat messages to game logic
+                let _ = msg;
+            }
+            Err(e) => {
+                warn!("Deserialise error from {}: {}", addr, e);
             }
         }
-        info!("Player '{}' (id={}) disconnected", player_name, player_id);
-        Ok(())
+    }
+
+    // ── Cleanup ────────────────────────────────────────────────────────────
+    write_task.abort();
+    players_clone.lock().unwrap().remove(&player_id);
+    broadcast_except(&players_clone, player_id, NetMessage::PlayerLeft { player_id });
+    info!("Player '{}' (id={}) disconnected", player_name, player_id);
+    Ok(())
+}
+
+fn broadcast_except(
+    players:   &ServerPlayerMap,
+    skip_id:   u32,
+    msg:       NetMessage,
+) {
+    let ps = players.lock().unwrap();
+    for p in ps.values() {
+        if p.id != skip_id {
+            let _ = p.tx.send(msg.clone());
+        }
     }
 }

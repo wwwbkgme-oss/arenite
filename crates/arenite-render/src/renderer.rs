@@ -31,7 +31,7 @@ impl AreniteRenderer {
     ) -> anyhow::Result<Self> {
         let size = window.inner_size();
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends:             wgpu::Backends::all(),
             ..Default::default()
         });
@@ -48,12 +48,15 @@ impl AreniteRenderer {
             .ok_or_else(|| anyhow::anyhow!("No suitable GPU adapter found"))?;
 
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label:              Some("arenite_device"),
-                required_features:  wgpu::Features::empty(),
-                required_limits:    wgpu::Limits::default(),
-                memory_hints:       wgpu::MemoryHints::default(),
-            })
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label:             Some("arenite_device"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits:   wgpu::Limits::default(),
+                    memory_hints:      wgpu::MemoryHints::default(),
+                },
+                None,
+            )
             .await?;
 
         let device = Arc::new(device);

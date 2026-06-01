@@ -81,14 +81,14 @@ impl ChunkTexture {
         }
 
         queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
+            wgpu::ImageCopyTexture {
                 texture:   &self.texture,
                 mip_level: 0,
                 origin:    wgpu::Origin3d::ZERO,
                 aspect:    wgpu::TextureAspect::All,
             },
             &rgba,
-            wgpu::TexelCopyBufferLayout {
+            wgpu::ImageDataLayout {
                 offset:         0,
                 bytes_per_row:  Some(CHUNK_SIZE as u32 * 4),
                 rows_per_image: Some(CHUNK_SIZE as u32),
