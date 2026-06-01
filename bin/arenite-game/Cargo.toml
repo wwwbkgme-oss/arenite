@@ -1,0 +1,28 @@
+[package]
+name        = "arenite-game"
+description = "Arenite Engine — game client binary"
+version.workspace    = true
+authors.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+repository.workspace = true
+
+[[bin]]
+name = "arenite"
+path = "src/main.rs"
+
+[dependencies]
+arenite-core.workspace    = true
+arenite-sim.workspace     = true
+arenite-world.workspace   = true
+arenite-physics.workspace = true
+arenite-render.workspace  = true
+arenite-net.workspace     = true
+winit.workspace           = true
+wgpu.workspace            = true
+tokio.workspace           = true
+log.workspace             = true
+env_logger.workspace      = true
+anyhow.workspace          = true
+serde.workspace           = true
+toml.workspace            = true
