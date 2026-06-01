@@ -114,8 +114,9 @@ impl AreniteRenderer {
             vbuf_generation: 0,
             camera,
             lighting:        LightPropagator::default(),
-            // Day-sky blue default (overridden by biome sky_color each frame).
-            sky_color:       [0.529, 0.808, 0.922],
+            // Linear-space sky blue default (matching the original hardcoded value).
+            // Biome sky_color is applied each tick via sRGB→linear conversion.
+            sky_color:       [0.22, 0.36, 0.58],
         })
     }
 

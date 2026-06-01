@@ -69,6 +69,18 @@ fn load_config() -> GameConfig {
         .unwrap_or_default()
 }
 
+/// Convert a sRGB u8 value to a linear f32 suitable for wgpu clear colour.
+/// wgpu's `LoadOp::Clear` and `wgpu::Color` use linear light values.
+#[inline]
+fn srgb_to_linear(v: u8) -> f32 {
+    let s = v as f32 / 255.0;
+    if s <= 0.04045 {
+        s / 12.92
+    } else {
+        ((s + 0.055) / 1.055).powf(2.4)
+    }
+}
+
 // ── Material palette (legacy fallback) ───────────────────────────────────────
 // Used only when the active hotbar item has no material_key (e.g. weapon/tool).
 
@@ -370,10 +382,12 @@ impl AreniteApp {
             if let Some(bm) = &self.biome_map {
                 let biome = BiomeMap::get_biome_data(bm.get(self.player.x as i32));
                 let sc = biome.sky_color;
+                // Convert sRGB u8 → linear f32 for wgpu clear color.
+                // wgpu's LoadOp::Clear expects linear values, not sRGB.
                 r.sky_color = [
-                    sc.r as f32 / 255.0,
-                    sc.g as f32 / 255.0,
-                    sc.b as f32 / 255.0,
+                    srgb_to_linear(sc.r),
+                    srgb_to_linear(sc.g),
+                    srgb_to_linear(sc.b),
                 ];
             }
         }
