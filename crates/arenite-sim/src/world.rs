@@ -120,32 +120,35 @@ impl SimWorld {
 
     /// Advance the simulation by one tick.
     ///
-    /// Active chunks are processed in 2×2 quads in parallel (rayon).
-    /// This matches the approach from FallingSandEngine's quad-based scheduler.
+    /// Chunks are divided into 4 colour-class phases by (cx%2, cy%2) so no two
+    /// chunks in the same phase share a write boundary — enabling safe parallel
+    /// execution within each phase (T-021 / T-049).
     pub fn tick_simulation(&mut self) {
         self.tick += 1;
         let t = self.tick;
 
-        // Collect active chunk positions.
-        let active: Vec<ChunkPos> = self.meta
-            .values()
-            .filter(|m| m.active && m.loaded)
-            .map(|m| m.pos)
-            .collect();
+        // Bucket active chunks into 4 independent phases.
+        let mut phases: [Vec<ChunkPos>; 4] = Default::default();
+        for m in self.meta.values() {
+            if !m.active || !m.loaded { continue; }
+            let phase = (m.pos.x.rem_euclid(2) + m.pos.y.rem_euclid(2) * 2) as usize;
+            phases[phase].push(m.pos);
+        }
 
-        // Process each active chunk sequentially; collect spawned particles.
-        let mut new_particles: Vec<Particle> = Vec::new();
-        for &cp in &active {
-            self.tick_one_chunk_and_collect(cp, t, &mut new_particles);
+        let mut new_particles: Vec<Particle> = Vec::with_capacity(64);
+        for phase in &phases {
+            for &cp in phase {
+                let mut spawned = self.tick_one_chunk(cp, t);
+                new_particles.append(&mut spawned);
+            }
         }
         self.particles.append(&mut new_particles);
 
-        // Tick particles.
+        // Tick free particles.
         let chunks = &self.chunks;
         self.particles.retain_mut(|p| {
-            let alive = p.tick();
-            if !alive { return false; }
-            // Try to settle back into the world.
+            if !p.tick() { return false; }
+            // Try to re-embed settled particles into the world.
             if fastrand::u8(..) < 10 {
                 let tp = TilePos::new(p.tile_x(), p.tile_y());
                 if let Some(cell) = chunks.get(&tp.to_chunk()) {
@@ -184,18 +187,6 @@ impl SimWorld {
         let mut ctx = SimContext::new(neighbours, &mut particles_local);
         Simulator::tick_chunk(&mut ctx, tick);
         particles_local
-    }
-
-    /// Tick one chunk and collect any spawned particles.
-    /// Called by tick_simulation; merges particles back into self.particles.
-    fn tick_one_chunk_and_collect(
-        &self,
-        cp:   ChunkPos,
-        tick: u64,
-        out:  &mut Vec<Particle>,
-    ) {
-        let mut spawned = self.tick_one_chunk(cp, tick);
-        out.append(&mut spawned);
     }
 
     // ── Statistics ────────────────────────────────────────────────────────

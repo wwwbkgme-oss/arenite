@@ -16,6 +16,7 @@
 pub mod chunk;
 pub mod material;
 pub mod physics_type;
+pub mod save;
 pub mod simulator;
 pub mod world;
 pub mod particle;
@@ -23,6 +24,7 @@ pub mod particle;
 pub use chunk::{Chunk, ChunkData};
 pub use material::{Material, MaterialInstance, MaterialRegistry};
 pub use physics_type::PhysicsType;
+pub use save::{save_world, load_world};
 pub use simulator::Simulator;
 pub use world::SimWorld;
 pub use particle::Particle;

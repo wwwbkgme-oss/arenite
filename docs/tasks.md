@@ -28,26 +28,26 @@ Status: `[x]` done · `[ ]` open · `[~]` partial
 
 ---
 
-## Phase 3 — Gray Window Fix 🔴 Critical (T-015..T-019)
+## Phase 3 — Gray Window Fix ✅ Complete (T-015..T-019)
 
-- [ ] T-015 **Camera init on frame 1** — `resumed()` must set `camera.position = player.pos`
-- [ ] T-016 **Vertex buffer lifetime** — collect `Vec<(Buffer, &ChunkTexture)>` *before*
+- [x] T-015 **Camera init on frame 1** — `resumed()` must set `camera.position = player.pos`
+- [x] T-016 **Vertex buffer lifetime** — collect `Vec<(Buffer, &ChunkTexture)>` *before*
   `begin_render_pass`; iterate inside the pass
-- [ ] T-017 **Dev world size** — default `600×200` tiles; add `WorldGenConfig::dev()`
-- [ ] T-018 **Background world gen** — world gen in rayon thread; `WorldState` enum guards
+- [x] T-017 **Dev world size** — default `600×200` tiles; add `WorldGenConfig::dev()`
+- [x] T-018 **Background world gen** — world gen in rayon thread; `WorldState` enum guards
   the game loop until world is ready
-- [ ] T-019 **Correct player spawn** — scan world-centre column for first solid tile; place
+- [x] T-019 **Correct player spawn** — scan world-centre column for first solid tile; place
   player 2 px above surface instead of using hardcoded `height * 0.35`
 
 ---
 
 ## Phase 4 — Core Systems (T-020..T-024)
 
-- [ ] T-020 `arenite-core/src/error.rs` — `AreniteError` enum + `AreniteResult<T>`
-- [ ] T-021 Quad-phase scheduler in `tick_simulation` (4 colour-class phases)
-- [ ] T-022 `save_world` / `load_world` — bincode per-chunk to `saves/<name>/`
+- [x] T-020 `arenite-core/src/error.rs` — `AreniteError` enum + `AreniteResult<T>`
+- [x] T-021 Quad-phase scheduler in `tick_simulation` (4 colour-class phases)
+- [x] T-022 `save_world` / `load_world` — bincode per-chunk to `saves/<name>/`
 - [ ] T-023 Server streams `ChunkData` messages to newly joined clients
-- [ ] T-024 `S` = save, `L` = load, `P` = pause/unpause
+- [x] T-024 `S` = save, `L` = load, `P` = pause/unpause
 
 ---
 
@@ -76,13 +76,13 @@ Status: `[x]` done · `[ ]` open · `[~]` partial
 
 ## Phase 7 — Developer Experience (T-038..T-044)
 
-- [ ] T-038 Unit tests: `sim_sand_falls`, `sim_liquid_spreads`, `worldgen_smoke`,
+- [x] T-038 Unit tests: `sim_sand_falls`, `sim_liquid_spreads`, `worldgen_smoke`,
   `chunk_pos_roundtrip`, `save_load_roundtrip`
 - [ ] T-039 Integration test: generate small world, tick 100×, assert active pixels > 0
 - [ ] T-040 `benches/sim_bench.rs` — criterion: `tick_64_chunks` baseline < 4 ms
-- [ ] T-041 `CHANGELOG.md` (Keep-a-Changelog)
-- [ ] T-042 `CONTRIBUTING.md` — build, style, PR checklist
-- [ ] T-043 `arenite.toml.example` + `arenite-server.toml.example`
+- [x] T-041 `CHANGELOG.md` (Keep-a-Changelog)
+- [x] T-042 `CONTRIBUTING.md` — build, style, PR checklist
+- [x] T-043 `arenite.toml.example` + `arenite-server.toml.example`
 - [ ] T-044 `docs/architecture.md` — crate dep graph + data-flow
 
 ---
@@ -99,10 +99,10 @@ Status: `[x]` done · `[ ]` open · `[~]` partial
 
 ## Phase 9 — Release Infrastructure (T-050..T-057)
 
-- [ ] T-050 CI: `cargo audit` security step
+- [x] T-050 CI: `cargo audit` security step
 - [ ] T-051 CI: `cargo deny` license + duplicate-dep check
-- [ ] T-052 CI: Windows build target (`windows-latest`)
-- [ ] T-053 GitHub Release workflow — binaries for `linux-x64`, `macos-arm64`, `windows-x64`
+- [x] T-052 CI: Windows build target (`windows-latest`)
+- [x] T-053 GitHub Release workflow — binaries for `linux-x64`, `macos-arm64`, `windows-x64`
 - [ ] T-054 Publish `arenite-core`, `arenite-sim`, `arenite-world` to crates.io
 - [ ] T-055 Full `cargo check` + `cargo test` green in CI
 - [ ] T-056 Repo topics: `rust` `game-engine` `cellular-automata` `falling-sand`

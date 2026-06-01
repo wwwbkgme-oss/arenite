@@ -8,6 +8,7 @@
 //  - Error types
 
 pub mod color;
+pub mod error;
 pub mod id;
 pub mod math;
 pub mod pos;
@@ -15,6 +16,7 @@ pub mod registry;
 pub mod rng;
 
 pub use color::Color;
+pub use error::{AreniteError, AreniteResult};
 pub use id::Id;
 pub use pos::{ChunkPos, TilePos, WorldPos};
 pub use registry::{Registry, RegistryId};

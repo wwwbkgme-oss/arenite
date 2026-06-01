@@ -1,0 +1,15 @@
+# Arenite game client config — copy to arenite.toml and edit
+
+# World dimensions in tiles.
+# Default 600×200 is fast to generate.
+# Use 2100×600 for a full-size world (takes ~3 s on first run).
+world_width  = 600
+world_height = 200
+
+# Leave blank to generate a random seed each run.
+world_seed   = 0
+
+player_name  = "Player"
+
+# Uncomment to connect to a multiplayer server instead of singleplayer.
+# server = "127.0.0.1:25565"

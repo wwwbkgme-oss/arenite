@@ -24,7 +24,7 @@ use winit::{
 use arenite_core::pos::{TilePos, WorldPos};
 use arenite_physics::PhysicsWorld;
 use arenite_render::AreniteRenderer;
-use arenite_sim::{SimWorld, material::MaterialInstance, physics_type::PhysicsType};
+use arenite_sim::{SimWorld, save_world, load_world, material::MaterialInstance, physics_type::PhysicsType};
 use arenite_world::{WorldGenerator, worldgen::WorldGenConfig};
 use arenite_core::Color;
 
@@ -382,6 +382,33 @@ impl ApplicationHandler for AreniteApp {
                             self.player.brush_radius = (self.player.brush_radius - 1).max(1),
                         KeyCode::BracketRight if pressed =>
                             self.player.brush_radius = (self.player.brush_radius + 1).min(32),
+
+                        // T-024: save / load / pause
+                        KeyCode::KeyS if pressed => {
+                            if let WorldState::Ready(sim) = &self.world {
+                                let dir = std::path::Path::new("saves");
+                                match save_world(sim, dir, "default") {
+                                    Ok(_)  => info!("World saved to saves/default/"),
+                                    Err(e) => log::error!("Save failed: {e}"),
+                                }
+                            }
+                        }
+                        KeyCode::KeyL if pressed => {
+                            let dir = std::path::Path::new("saves");
+                            match load_world(dir, "default") {
+                                Ok(sim) => {
+                                    let (sx, sy) = find_spawn(&sim, self.world_width, self.world_height);
+                                    self.player = Player::new(sx, sy);
+                                    if let Some(r) = &mut self.renderer {
+                                        r.camera.position = glam::Vec2::new(sx, sy);
+                                        r.sync_chunks(&sim);
+                                    }
+                                    self.world = WorldState::Ready(sim);
+                                    info!("World loaded from saves/default/");
+                                }
+                                Err(e) => log::error!("Load failed: {e}"),
+                            }
+                        }
 
                         _ => {}
                     }

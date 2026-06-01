@@ -1,0 +1,7 @@
+# Arenite dedicated server config — copy to arenite-server.toml and edit
+
+bind         = "0.0.0.0:25565"
+world_width  = 4200
+world_height = 1200
+world_seed   = 0         # 0 = random
+tps          = 20        # simulation ticks per second
