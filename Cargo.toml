@@ -1,0 +1,86 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/arenite-core",
+    "crates/arenite-sim",
+    "crates/arenite-world",
+    "crates/arenite-physics",
+    "crates/arenite-render",
+    "crates/arenite-net",
+    "bin/arenite-game",
+    "bin/arenite-server",
+]
+
+[workspace.package]
+version     = "0.1.0"
+authors     = ["Arenite Engine Contributors"]
+edition     = "2021"
+license     = "Apache-2.0"
+repository  = "https://github.com/wwwbkgme-oss/arenite"
+description = "Arenite Engine — falling-sand pixel simulation + procgen worlds in Rust"
+
+# ── Shared dependency versions ──────────────────────────────────────────────
+[workspace.dependencies]
+# Internal crates
+arenite-core    = { path = "crates/arenite-core" }
+arenite-sim     = { path = "crates/arenite-sim" }
+arenite-world   = { path = "crates/arenite-world" }
+arenite-physics = { path = "crates/arenite-physics" }
+arenite-render  = { path = "crates/arenite-render" }
+arenite-net     = { path = "crates/arenite-net" }
+
+# Math + utils
+glam        = { version = "0.27", features = ["serde"] }
+fastrand    = "2"
+rand        = { version = "0.8", features = ["small_rng"] }
+
+# Serialisation
+serde       = { version = "1",    features = ["derive"] }
+bincode     = "1"
+
+# Error handling
+anyhow      = "1"
+thiserror   = "1"
+
+# Logging
+log         = "0.4"
+env_logger  = "0.11"
+
+# Concurrency
+rayon       = "1"
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+once_cell   = "1"
+
+# Hash
+ahash       = "0.8"
+
+# Physics
+rapier2d    = { version = "0.21", features = ["simd-stable"] }
+
+# Noise (for world gen — OpenSimplex-compatible)
+noise       = "0.9"
+
+# Rendering (wgpu + winit)
+wgpu        = "22"
+winit       = "0.30"
+bytemuck    = { version = "1", features = ["derive"] }
+image       = { version = "0.25", default-features = false, features = ["png"] }
+
+# Async / networking
+tokio       = { version = "1", features = ["full"] }
+
+# Config
+toml        = "0.8"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level  = 3
+lto        = "thin"
+codegen-units = 1
+strip      = "debuginfo"
+
+[profile.dev.package."*"]
+opt-level = 2   # optimise dependencies even in dev

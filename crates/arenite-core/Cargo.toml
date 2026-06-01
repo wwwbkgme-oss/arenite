@@ -1,0 +1,18 @@
+[package]
+name        = "arenite-core"
+description = "Core types, math utilities, registry and ID system for Arenite Engine"
+version.workspace     = true
+authors.workspace     = true
+edition.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+glam.workspace      = true
+serde.workspace     = true
+anyhow.workspace    = true
+thiserror.workspace = true
+ahash.workspace     = true
+once_cell.workspace = true
+fastrand.workspace  = true
+log.workspace       = true
