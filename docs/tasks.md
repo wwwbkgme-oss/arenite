@@ -1,70 +1,110 @@
 # Arenite Engine — Production Task List
 
-Status legend: `[ ]` open · `[x]` done · `[~]` partial
+Status: `[x]` done · `[ ]` open · `[~]` partial
 
 ---
 
-## Phase 1 — Build Fixes (Blocker)
+## Phase 1 — Build Fixes ✅ Complete (T-001..T-007)
 
-- [ ] **T-001** Add missing `rand` dep to `arenite-core/Cargo.toml`
-- [ ] **T-002** Add missing `crossbeam-channel` dep to `arenite-physics/Cargo.toml`
-- [ ] **T-003** Fix rapier2d 0.21 API: `ChannelEventCollector` constructor changed; pass `()` event handler instead
-- [ ] **T-004** Add missing `pollster` dep to `arenite-game/Cargo.toml`
-- [ ] **T-005** Add missing `fastrand` dep to `arenite-server/Cargo.toml`
-- [ ] **T-006** Fix broken `OwnedReadHalf::from(...)` + `TcpStream::from_std(connect(...))` in `arenite-net/src/server.rs`
-- [ ] **T-007** `cargo check --workspace` → zero errors
+- [x] T-001 `rand` dep in `arenite-core/Cargo.toml`
+- [x] T-002 `crossbeam-channel` dep in `arenite-physics/Cargo.toml`
+- [x] T-003 rapier2d 0.21 — replace `ChannelEventCollector` with `&()` event handler
+- [x] T-004 `pollster` / `fastrand` / `glam` deps in `arenite-game/Cargo.toml`
+- [x] T-005 `fastrand` dep in `arenite-server/Cargo.toml`
+- [x] T-006 Rewrite broken TCP split + fake-reconnect in `arenite-net/server.rs`
+- [x] T-007 `cargo check --workspace` → 0 errors
 
-## Phase 2 — Correctness & Safety
+---
 
-- [ ] **T-008** Replace `unwrap()` / `expect()` in library crates with `Result` propagation or safe defaults
-- [ ] **T-009** Fix `SimWorld::tick_one_chunk` — merge `particles_local` back into `self.particles` after each chunk tick
-- [ ] **T-010** Reset `ChunkData::dirty` after GPU texture upload in `AreniteRenderer::sync_chunks`
-- [ ] **T-011** Implement per-chunk quad offset in renderer via per-frame vertex re-upload (removes the broken shared quad buffer)
-- [ ] **T-012** Fix `arenite-world/src/biome.rs` — remove unused `use arenite_sim::material::MaterialInstance` import
-- [ ] **T-013** Fix `PhysicsWorld::step` — remove orphaned `event_handler` variable; pass `&()` directly to pipeline
-- [ ] **T-014** `cargo clippy --workspace -- -D warnings` → zero warnings
+## Phase 2 — Correctness & Clippy ✅ Complete (T-008..T-014)
 
-## Phase 3 — Missing Core Systems
+- [x] T-008 Replace hot-path `unwrap()` with safe alternatives in lib crates
+- [x] T-009 `tick_one_chunk` returns `Vec<Particle>`; merged in `tick_simulation`
+- [x] T-010 Reset `DirtyRect` after GPU upload in `sync_chunks`
+- [x] T-011 Per-chunk vertex buffer collected before render pass (not inside)
+- [x] T-012 Remove dead imports across workspace
+- [x] T-013 `PhysicsPipeline::step` uses `&()` — no orphan event-handler variable
+- [x] T-014 `cargo clippy --workspace -D warnings` → 0 errors
 
-- [ ] **T-015** Implement proper rayon quad-scheduler in `SimWorld::tick_simulation` (2×2 independent chunk quads in parallel)
-- [ ] **T-016** Add `ChunkStore` trait: `load_chunk_on_demand` when player approaches unloaded region
-- [ ] **T-017** World save / load: `bincode` serialize `SimWorld` chunks to `saves/<name>/chunks/` directory
-- [ ] **T-018** Multiplayer chunk streaming: server sends `NetMessage::ChunkData` on player join and chunk enter
-- [ ] **T-019** Add `crates/arenite-core/src/error.rs`: `AreniteError` enum + `AreniteResult<T>` alias
+---
 
-## Phase 4 — Gameplay Completeness
+## Phase 3 — Gray Window Fix 🔴 Critical (T-015..T-019)
 
-- [ ] **T-020** HUD: selected material label, tile coordinates under cursor, FPS/TPS counters (wgpu text or egui)
-- [ ] **T-021** Particle rendering: upload particle positions as point-sprite instance buffer each frame
-- [ ] **T-022** Background sky gradient: full-screen quad behind world, interpolates sky colour per biome
-- [ ] **T-023** Inventory: 10-slot hotbar; pick up pixels into stack, place from stack
-- [ ] **T-024** Lighting integration: call `LightPropagator::propagate_chunk` after sim tick; upload light map as second texture
-- [ ] **T-025** Water physics improvement: pressure propagation (fill from bottom), evaporation near lava
+- [ ] T-015 **Camera init on frame 1** — `resumed()` must set `camera.position = player.pos`
+- [ ] T-016 **Vertex buffer lifetime** — collect `Vec<(Buffer, &ChunkTexture)>` *before*
+  `begin_render_pass`; iterate inside the pass
+- [ ] T-017 **Dev world size** — default `600×200` tiles; add `WorldGenConfig::dev()`
+- [ ] T-018 **Background world gen** — world gen in rayon thread; `WorldState` enum guards
+  the game loop until world is ready
+- [ ] T-019 **Correct player spawn** — scan world-centre column for first solid tile; place
+  player 2 px above surface instead of using hardcoded `height * 0.35`
 
-## Phase 5 — Developer Experience
+---
 
-- [ ] **T-026** Add `tests/` directory with unit tests: `sim_sand_falls`, `sim_liquid_spreads`, `worldgen_smoke`, `chunk_pos_roundtrip`
-- [ ] **T-027** Add `benches/sim_bench.rs` with criterion: `bench_tick_1000_chunks`, `bench_worldgen_small`
-- [ ] **T-028** Add `CHANGELOG.md` following Keep-a-Changelog format
-- [ ] **T-029** Add `CONTRIBUTING.md`: build instructions, code style, PR checklist
-- [ ] **T-030** Add example configs: `arenite.toml.example`, `arenite-server.toml.example`
-- [ ] **T-031** Add `docs/architecture.md`: crate dependency graph, data-flow diagrams, design rationale
+## Phase 4 — Core Systems (T-020..T-024)
 
-## Phase 6 — Performance
+- [ ] T-020 `arenite-core/src/error.rs` — `AreniteError` enum + `AreniteResult<T>`
+- [ ] T-021 Quad-phase scheduler in `tick_simulation` (4 colour-class phases)
+- [ ] T-022 `save_world` / `load_world` — bincode per-chunk to `saves/<name>/`
+- [ ] T-023 Server streams `ChunkData` messages to newly joined clients
+- [ ] T-024 `S` = save, `L` = load, `P` = pause/unpause
 
-- [ ] **T-032** Profile sim tick with `tracing` spans; identify hot paths
-- [ ] **T-033** Pre-allocate particle Vec with capacity 4096 to avoid reallocations
-- [ ] **T-034** Texture atlas: pack all chunk textures into one large GPU texture + UV offset UBO (eliminates per-chunk bind group switch)
-- [ ] **T-035** Only upload dirty chunks (full dirty rect, not whole texture)
-- [ ] **T-036** Background thread for world generation (rayon scope, not blocking the game loop)
+---
 
-## Phase 7 — Release Infrastructure
+## Phase 5 — Gameplay & Rendering (T-025..T-032)
 
-- [ ] **T-037** CI: add `cargo audit` step (security advisories)
-- [ ] **T-038** CI: add `cargo deny` for license and duplicate-dep checks
-- [ ] **T-039** CI: add Windows build target (`windows-latest`)
-- [ ] **T-040** GitHub Release workflow: build release binaries for linux-x64, macos-arm64, windows-x64 on tag push
-- [ ] **T-041** Publish `arenite-core`, `arenite-sim`, `arenite-world` to crates.io (no API-key auth needed for workflow stub)
-- [ ] **T-042** Write `README.md` screenshots section (placeholder for gameplay GIFs)
-- [ ] **T-043** Set repo topics on GitHub: `rust`, `game-engine`, `cellular-automata`, `procedural-generation`, `wgpu`
-- [ ] **T-044** Final `cargo check --workspace` + `cargo test --workspace` → green
+- [ ] T-025 Sky gradient — fullscreen quad behind chunks; top colour from biome `sky_color`
+- [ ] T-026 Lighting — propagate per tick; second RGB texture per chunk; multiply in shader
+- [ ] T-027 Particle rendering — point-sprite instance buffer rebuilt each frame
+- [ ] T-028 HUD — material name, cursor tile coords, FPS/TPS counters, window title
+- [ ] T-029 Hotbar — 8 material slots, 1–8 / mouse-wheel to cycle
+- [ ] T-030 Pause menu — Esc opens overlay: Resume / Save / Quit
+- [ ] T-031 Brush radius — `[` / `]` keys to adjust; display in HUD
+- [ ] T-032 Parallax background layer — distant hills/clouds second render pass
+
+---
+
+## Phase 6 — Physics & Simulation (T-033..T-037)
+
+- [ ] T-033 Water pressure — BFS flood-fill upward to `max_pressure` depth
+- [ ] T-034 Lava–water interaction — contact spawns `steam` + `stone`
+- [ ] T-035 Fire propagation — `wood` / `grass` flammable; burn → `smoke`
+- [ ] T-036 Wind — per-biome horizontal drift applied to `Gas` pixels
+- [ ] T-037 Rigidbody demo — falling crate on spawn using `RigidBody::pre_sim_stamp`
+
+---
+
+## Phase 7 — Developer Experience (T-038..T-044)
+
+- [ ] T-038 Unit tests: `sim_sand_falls`, `sim_liquid_spreads`, `worldgen_smoke`,
+  `chunk_pos_roundtrip`, `save_load_roundtrip`
+- [ ] T-039 Integration test: generate small world, tick 100×, assert active pixels > 0
+- [ ] T-040 `benches/sim_bench.rs` — criterion: `tick_64_chunks` baseline < 4 ms
+- [ ] T-041 `CHANGELOG.md` (Keep-a-Changelog)
+- [ ] T-042 `CONTRIBUTING.md` — build, style, PR checklist
+- [ ] T-043 `arenite.toml.example` + `arenite-server.toml.example`
+- [ ] T-044 `docs/architecture.md` — crate dep graph + data-flow
+
+---
+
+## Phase 8 — Performance (T-045..T-049)
+
+- [ ] T-045 Pre-allocate particles with capacity 4096
+- [ ] T-046 Texture atlas — pack ≤512 chunks into 2048² GPU texture; UBO of UV offsets
+- [ ] T-047 Chunk eviction — unload chunks > `UNLOAD_RADIUS = 12` from player
+- [ ] T-048 Skip sim for `dirty.max_dynamic == 0` chunks
+- [ ] T-049 `rayon::par_iter` within each quad phase once non-overlapping is proven
+
+---
+
+## Phase 9 — Release Infrastructure (T-050..T-057)
+
+- [ ] T-050 CI: `cargo audit` security step
+- [ ] T-051 CI: `cargo deny` license + duplicate-dep check
+- [ ] T-052 CI: Windows build target (`windows-latest`)
+- [ ] T-053 GitHub Release workflow — binaries for `linux-x64`, `macos-arm64`, `windows-x64`
+- [ ] T-054 Publish `arenite-core`, `arenite-sim`, `arenite-world` to crates.io
+- [ ] T-055 Full `cargo check` + `cargo test` green in CI
+- [ ] T-056 Repo topics: `rust` `game-engine` `cellular-automata` `falling-sand`
+  `procedural-generation` `wgpu` `terraria-like`
+- [ ] T-057 README screenshots / GIF section with gameplay footage placeholder
