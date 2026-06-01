@@ -29,6 +29,9 @@ pub struct AreniteRenderer {
     vbuf_generation:    u64,
     pub camera:         Camera2D,
     pub lighting:       LightPropagator,
+    /// Sky/background clear colour — updated each frame from the current biome
+    /// (see T-025).  Defaults to a neutral day-sky blue.
+    pub sky_color:      [f32; 3],
 }
 
 impl AreniteRenderer {
@@ -111,6 +114,8 @@ impl AreniteRenderer {
             vbuf_generation: 0,
             camera,
             lighting:        LightPropagator::default(),
+            // Day-sky blue default (overridden by biome sky_color each frame).
+            sky_color:       [0.529, 0.808, 0.922],
         })
     }
 
@@ -211,7 +216,10 @@ impl AreniteRenderer {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load:  wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.22, g: 0.36, b: 0.58, a: 1.0, // sky-blue background
+                            r: self.sky_color[0] as f64,
+                            g: self.sky_color[1] as f64,
+                            b: self.sky_color[2] as f64,
+                            a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
                     },

@@ -24,7 +24,7 @@ pub mod noise_field;
 pub mod structure;
 pub mod worldgen;
 
-pub use biome::{Biome, BiomeId, BiomeMap};
+pub use biome::{Biome, BiomeId, BiomeMap, BIOMES};
 pub use worldgen::WorldGenerator;
 pub use noise_field::NoiseField;
 

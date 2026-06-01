@@ -10,6 +10,7 @@
 pub mod color;
 pub mod error;
 pub mod id;
+pub mod items;
 pub mod math;
 pub mod pos;
 pub mod registry;

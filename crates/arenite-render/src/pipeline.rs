@@ -128,8 +128,11 @@ impl WorldPipeline {
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                topology:   wgpu::PrimitiveTopology::TriangleList,
-                cull_mode:  Some(wgpu::Face::Back),
+                topology:  wgpu::PrimitiveTopology::TriangleList,
+                // 2D quads: the Y-axis flip in the orthographic projection makes
+                // all triangles CW in NDC space, so we must disable back-face
+                // culling or every quad would be discarded (blue screen).
+                cull_mode: None,
                 ..Default::default()
             },
             depth_stencil: None,

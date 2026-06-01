@@ -26,6 +26,30 @@ impl Color {
     pub const GOLD:        Self = Self { r: 255, g: 200, b: 50,  a: 255 };
     pub const IRON_ORE:    Self = Self { r: 153, g: 102, b: 0,   a: 255 };
 
+    // ── New materials (Terraria / Starbound / re-flora inspired) ─────────
+    /// Clay: warm terracotta-red found near water bodies (Terraria/SDV clay).
+    pub const CLAY:        Self = Self { r: 186, g: 100, b: 54,  a: 255 };
+    /// Mud: saturated dark-brown jungle floor (Terraria mud block).
+    pub const MUD:         Self = Self { r: 89,  g: 62,  b: 26,  a: 255 };
+    /// Obsidian: near-black volcanic glass from lava+water contact.
+    pub const OBSIDIAN:    Self = Self { r: 30,  g: 10,  b: 40,  a: 255 };
+    /// Oil: dark amber liquid, floats on water, burns readily (Starbound fuel).
+    pub const OIL:         Self = Self { r: 60,  g: 40,  b: 10,  a: 220 };
+    /// Acid: corrosive green liquid (Starbound alien biomes).
+    pub const ACID:        Self = Self { r: 80,  g: 200, b: 30,  a: 210 };
+    /// Ice: pale blue-white powder that slides (Terraria ice block).
+    pub const ICE:         Self = Self { r: 190, g: 220, b: 255, a: 255 };
+    /// Crystal: translucent cyan emissive solid (Starbound crystal caves).
+    pub const CRYSTAL:     Self = Self { r: 120, g: 230, b: 255, a: 220 };
+    /// Mushroom block: spongey violet (Terraria mushroom biome / Starbound fungal).
+    pub const MUSHROOM:    Self = Self { r: 150, g: 80,  b: 180, a: 255 };
+    /// Titanium ore: silver-white metallic ore (Starbound tier-3 ore).
+    pub const TITANIUM:    Self = Self { r: 200, g: 200, b: 215, a: 255 };
+    /// Copper ore: rusty orange (Starbound / Terraria copper).
+    pub const COPPER_ORE:  Self = Self { r: 184, g: 100, b: 50,  a: 255 };
+    /// Diamond: bright blue-white gemstone (Terraria / Starbound).
+    pub const DIAMOND:     Self = Self { r: 185, g: 242, b: 255, a: 255 };
+
     #[inline]
     pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }

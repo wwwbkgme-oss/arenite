@@ -1,4 +1,5 @@
 // Arenite Engine — game client
+mod entity;
 //
 // Gray-window fixes applied (T-015..T-019):
 //  T-015 Camera set to spawn pos inside resumed() immediately after renderer creation
@@ -22,10 +23,16 @@ use winit::{
 };
 
 use arenite_core::pos::{TilePos, WorldPos};
+use entity::EntityManager;
+use arenite_core::items::{PlayerInventory, default_item_registry, ItemRegistry};
 use arenite_physics::PhysicsWorld;
 use arenite_render::AreniteRenderer;
-use arenite_sim::{SimWorld, save_world, load_world, material::MaterialInstance, physics_type::PhysicsType};
-use arenite_world::{WorldGenerator, worldgen::WorldGenConfig};
+use arenite_sim::{
+    SimWorld, save_world, load_world,
+    material::{MaterialInstance, MaterialRegistry, make_instance, default_material_registry},
+    physics_type::PhysicsType,
+};
+use arenite_world::{WorldGenerator, worldgen::WorldGenConfig, BiomeMap, NoiseField};
 use arenite_core::Color;
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -62,22 +69,23 @@ fn load_config() -> GameConfig {
         .unwrap_or_default()
 }
 
-// ── Material palette ──────────────────────────────────────────────────────────
+// ── Material palette (legacy fallback) ───────────────────────────────────────
+// Used only when the active hotbar item has no material_key (e.g. weapon/tool).
 
 const PALETTE: &[(PhysicsType, Color, &str)] = &[
-    (PhysicsType::Sand,  Color::SAND,              "Sand"),
-    (PhysicsType::Liquid,Color::WATER,             "Water"),
-    (PhysicsType::Solid, Color::STONE,             "Stone"),
-    (PhysicsType::Solid, Color::DIRT,              "Dirt"),
-    (PhysicsType::Solid, Color::GRASS,             "Grass"),
-    (PhysicsType::Sand,  Color::SNOW,              "Snow"),
-    (PhysicsType::Gas,   Color { r:80,g:80,b:80,a:160 },  "Smoke"),
-    (PhysicsType::Liquid,Color::LAVA,              "Lava"),
+    (PhysicsType::Sand,   Color::SAND,                        "Sand"),
+    (PhysicsType::Liquid, Color::WATER,                       "Water"),
+    (PhysicsType::Solid,  Color::STONE,                       "Stone"),
+    (PhysicsType::Solid,  Color::DIRT,                        "Dirt"),
+    (PhysicsType::Solid,  Color::GRASS,                       "Grass"),
+    (PhysicsType::Sand,   Color::SNOW,                        "Snow"),
+    (PhysicsType::Gas,    Color { r:80, g:80, b:80, a:160 },  "Smoke"),
+    (PhysicsType::Liquid, Color::LAVA,                        "Lava"),
 ];
 
-fn make_mat(slot: usize) -> MaterialInstance {
+fn palette_mat(slot: usize) -> MaterialInstance {
     let (physics, color, _) = PALETTE[slot % PALETTE.len()];
-    MaterialInstance { id: slot as u16, physics, color, light: [0.0; 3], data: 50 }
+    MaterialInstance { id: slot as u16, physics, color, light: [0.0; 3], data: 0 }
 }
 
 // ── Player ────────────────────────────────────────────────────────────────────
@@ -88,11 +96,26 @@ struct Player {
     on_ground:    bool,
     selected_mat: usize,
     brush_radius: i32,
+    /// Current hit-points (T-073 HP system).
+    hp:     i32,
+    max_hp: i32,
+    /// Invincibility frames after taking damage.
+    iframes: u32,
+}
+
+impl Player {
+    const MAX_HP: i32 = 100;
+    const W: f32 = 8.0;
+    const H: f32 = 14.0;
 }
 
 impl Player {
     fn new(x: f32, y: f32) -> Self {
-        Self { x, y, vx: 0.0, vy: 0.0, on_ground: false, selected_mat: 0, brush_radius: 3 }
+        Self {
+            x, y, vx: 0.0, vy: 0.0, on_ground: false,
+            selected_mat: 0, brush_radius: 3,
+            hp: Self::MAX_HP, max_hp: Self::MAX_HP, iframes: 0,
+        }
     }
 
     fn collide_at(&self, sim: &SimWorld, x: f32, y: f32) -> bool {
@@ -176,6 +199,20 @@ struct AreniteApp {
     world_width:  i32,
     world_height: i32,
 
+    /// Biome map — populated once world gen finishes; used for sky colour.
+    biome_map: Option<BiomeMap>,
+
+    // ── Entity system (Terraria / Starbound monster AI) ───────────────────
+    entities: EntityManager,
+
+    // ── Item / inventory system (Starbound-inspired) ───────────────────────
+    /// Static item definitions.
+    item_registry:     ItemRegistry,
+    /// Static material definitions (for registry-based pixel placement).
+    material_registry: MaterialRegistry,
+    /// Player's full inventory: hotbar + main bag + armor.
+    player_inventory:  PlayerInventory,
+
     // Input
     left: bool, right: bool, jump: bool,
     cursor_world: WorldPos,
@@ -219,6 +256,11 @@ impl AreniteApp {
             window:      None,
             world_width:  w,
             world_height: h,
+            biome_map:   None,
+            entities:          EntityManager::new(),
+            item_registry:     default_item_registry(),
+            material_registry: default_material_registry(),
+            player_inventory:  PlayerInventory::starter(),
             left: false, right: false, jump: false,
             cursor_world: WorldPos::new(0.0, 0.0),
             placing: false, removing: false,
@@ -247,6 +289,15 @@ impl AreniteApp {
                         r.camera.position = glam::Vec2::new(sx, sy);
                     }
 
+                    // Build biome map from same seed (deterministic; no extra gen cost).
+                    let noise = NoiseField::new(sim.seed);
+                    self.biome_map = Some(BiomeMap::new(self.world_width, &noise));
+
+                    // Spawn initial enemies near the player spawn (T-072).
+                    self.entities.spawn_slimes_near(sx, sy - 20.0, 4, 80.0);
+                    self.entities.spawn_bats_near(sx, sy + 60.0, 3, 100.0);
+                    log::info!("Spawned {} entities", self.entities.len());
+
                     self.world = WorldState::Ready(sim);
                     return true;
                 }
@@ -271,21 +322,40 @@ impl AreniteApp {
     }
 
     fn game_tick(&mut self) {
+        // Resolve paint material BEFORE borrowing `self.world` (borrow-checker split).
+        let paint_mat  = self.active_paint_mat();
+        let brush      = self.player.brush_radius;
+        let cursor     = self.cursor_world.tile();
+        let placing    = self.placing;
+        let removing   = self.removing;
+
         let WorldState::Ready(sim) = &mut self.world else { return; };
 
-        // Pixel painting.
-        if self.placing {
-            let tp  = self.cursor_world.tile();
-            let mat = make_mat(self.player.selected_mat);
-            sim.paint_circle(tp, self.player.brush_radius, mat);
+        // Pixel painting — use inventory's active hotbar item if it's a tile-placer.
+        if placing {
+            sim.paint_circle(cursor, brush, paint_mat);
         }
-        if self.removing {
-            let tp = self.cursor_world.tile();
-            sim.paint_circle(tp, self.player.brush_radius, MaterialInstance::air());
+        if removing {
+            sim.paint_circle(cursor, brush, MaterialInstance::air());
         }
 
         // Player physics + movement.
-        self.player.tick(sim, self.left, self.right, self.jump);
+        let left  = self.left;
+        let right = self.right;
+        let jump  = self.jump;
+        self.player.tick(sim, left, right, jump);
+
+        // Tick entity AI.  Returns contact damage dealt to player this tick.
+        let px = self.player.x;
+        let py = self.player.y;
+        let contact_dmg = self.entities.update(sim, px, py, Player::W, Player::H);
+
+        // Apply contact damage with invincibility frames (T-073).
+        if contact_dmg > 0 && self.player.iframes == 0 {
+            self.player.hp = (self.player.hp - contact_dmg).max(0);
+            self.player.iframes = 30; // 0.5 s invincibility
+        }
+        if self.player.iframes > 0 { self.player.iframes -= 1; }
 
         // Cellular automata tick.
         sim.tick_simulation();
@@ -294,9 +364,45 @@ impl AreniteApp {
         self.physics.step(1.0 / 60.0);
 
         // T-015: keep camera locked to player every tick.
+        // T-025: update sky colour from current biome.
         if let Some(r) = &mut self.renderer {
             r.camera.position = glam::Vec2::new(self.player.x, self.player.y);
+            if let Some(bm) = &self.biome_map {
+                let biome = BiomeMap::get_biome_data(bm.get(self.player.x as i32));
+                let sc = biome.sky_color;
+                r.sky_color = [
+                    sc.r as f32 / 255.0,
+                    sc.g as f32 / 255.0,
+                    sc.b as f32 / 255.0,
+                ];
+            }
         }
+    }
+
+    /// Return the material instance to paint based on the active hotbar item.
+    ///
+    /// 1. If the active item is a tile-placer, look up its material in the registry.
+    /// 2. Fall back to the legacy palette slot for quick testing.
+    fn active_paint_mat(&self) -> MaterialInstance {
+        // Try registry lookup first.
+        if let Some(mat_key) = self.player_inventory.active_material_key(&self.item_registry) {
+            if let Some(mat) = make_instance(&self.material_registry, mat_key) {
+                return mat;
+            }
+        }
+        // Fallback: legacy palette slot.
+        palette_mat(self.player.selected_mat)
+    }
+
+    /// Human-readable name for the active hotbar item (for window title / HUD).
+    fn active_item_name(&self) -> &str {
+        if let Some(stack) = self.player_inventory.active_slot() {
+            let key = arenite_core::id::StringId::from(stack.item_key.as_str());
+            if let Some(item) = self.item_registry.get_by_name(&key) {
+                return &item.display_name;
+            }
+        }
+        PALETTE[self.player.selected_mat % PALETTE.len()].2
     }
 
     fn update_window_title(&mut self) {
@@ -305,14 +411,15 @@ impl AreniteApp {
         if elapsed >= Duration::from_secs(1) {
             let fps = self.frame_count as f64 / elapsed.as_secs_f64();
             if let Some(w) = &self.window {
-                let mat_name = PALETTE[self.player.selected_mat % PALETTE.len()].2;
+                let item_name = self.active_item_name().to_string();
                 let title = format!(
-                    "Arenite  |  {fps:.0} fps  |  [{mat_name}]  |  brush:{br}  |  {x:.0},{y:.0}",
-                    fps = fps,
-                    mat_name = mat_name,
-                    br = self.player.brush_radius,
-                    x = self.player.x,
-                    y = self.player.y,
+                    "Arenite  |  {fps:.0} fps  |  [{item_name}]  |  HP:{hp}/{mhp}  |  brush:{br}  |  {x:.0},{y:.0}",
+                    item_name = item_name,
+                    hp  = self.player.hp,
+                    mhp = self.player.max_hp,
+                    br  = self.player.brush_radius,
+                    x   = self.player.x,
+                    y   = self.player.y,
                 );
                 w.set_title(&title);
             }
@@ -367,15 +474,15 @@ impl ApplicationHandler for AreniteApp {
                         KeyCode::Space | KeyCode::ArrowUp   => self.jump  = pressed,
                         KeyCode::Escape if pressed          => event_loop.exit(),
 
-                        // Material slots
-                        KeyCode::Digit1 if pressed => self.player.selected_mat = 0,
-                        KeyCode::Digit2 if pressed => self.player.selected_mat = 1,
-                        KeyCode::Digit3 if pressed => self.player.selected_mat = 2,
-                        KeyCode::Digit4 if pressed => self.player.selected_mat = 3,
-                        KeyCode::Digit5 if pressed => self.player.selected_mat = 4,
-                        KeyCode::Digit6 if pressed => self.player.selected_mat = 5,
-                        KeyCode::Digit7 if pressed => self.player.selected_mat = 6,
-                        KeyCode::Digit8 if pressed => self.player.selected_mat = 7,
+                        // Hotbar slots 1–8: sync both legacy palette and inventory (T-029).
+                        KeyCode::Digit1 if pressed => { self.player.selected_mat = 0; self.player_inventory.select_slot(0); }
+                        KeyCode::Digit2 if pressed => { self.player.selected_mat = 1; self.player_inventory.select_slot(1); }
+                        KeyCode::Digit3 if pressed => { self.player.selected_mat = 2; self.player_inventory.select_slot(2); }
+                        KeyCode::Digit4 if pressed => { self.player.selected_mat = 3; self.player_inventory.select_slot(3); }
+                        KeyCode::Digit5 if pressed => { self.player.selected_mat = 4; self.player_inventory.select_slot(4); }
+                        KeyCode::Digit6 if pressed => { self.player.selected_mat = 5; self.player_inventory.select_slot(5); }
+                        KeyCode::Digit7 if pressed => { self.player.selected_mat = 6; self.player_inventory.select_slot(6); }
+                        KeyCode::Digit8 if pressed => { self.player.selected_mat = 7; self.player_inventory.select_slot(7); }
 
                         // T-031: brush size
                         KeyCode::BracketLeft  if pressed =>
@@ -446,8 +553,12 @@ impl ApplicationHandler for AreniteApp {
                 self.update_window_title();
 
                 if let Some(r) = &mut self.renderer {
-                    if let WorldState::Ready(sim) = &self.world {
+                    if let WorldState::Ready(sim) = &mut self.world {
+                        // Stamp entity pixels before GPU upload so they're visible.
+                        self.entities.stamp_pixels(sim);
                         r.sync_chunks(sim);
+                        // Remove entity pixels after upload to avoid polluting sim.
+                        self.entities.clear_pixels(sim);
                     }
                     match r.render() {
                         Ok(_) => {}

@@ -51,15 +51,24 @@ pub struct ChunkData {
     pub light:  Vec<[f32; 3]>,
     /// Dirty rect since last GPU upload.
     pub dirty:  DirtyRect,
+    /// Count of pixels whose `PhysicsType::is_dynamic()` returns true (T-048).
+    /// When this is 0, the chunk is fully static and simulation can be skipped.
+    pub dynamic_count: u32,
 }
 
 impl ChunkData {
     pub fn new_empty() -> Self {
         Self {
-            pixels: vec![MaterialInstance::air(); CHUNK_AREA],
-            light:  vec![[0.0_f32; 3]; CHUNK_AREA],
-            dirty:  DirtyRect::clean(),
+            pixels:        vec![MaterialInstance::air(); CHUNK_AREA],
+            light:         vec![[0.0_f32; 3]; CHUNK_AREA],
+            dirty:         DirtyRect::clean(),
+            dynamic_count: 0,
         }
+    }
+
+    /// Rebuild `dynamic_count` from scratch (call after bulk pixel imports).
+    pub fn recount_dynamic(&mut self) {
+        self.dynamic_count = self.pixels.iter().filter(|p| p.is_dynamic()).count() as u32;
     }
 
     /// Return pixel index for chunk-local (x, y), unchecked.
@@ -76,7 +85,16 @@ impl ChunkData {
 
     #[inline]
     pub fn set(&mut self, x: i32, y: i32, mat: MaterialInstance) {
-        let idx = Self::idx(x, y);
+        let idx     = Self::idx(x, y);
+        let old     = self.pixels[idx];
+        // Maintain dynamic_count incrementally (T-048).
+        let was_dyn = old.is_dynamic();
+        let is_dyn  = mat.is_dynamic();
+        if was_dyn && !is_dyn {
+            self.dynamic_count = self.dynamic_count.saturating_sub(1);
+        } else if !was_dyn && is_dyn {
+            self.dynamic_count += 1;
+        }
         self.pixels[idx] = mat;
         self.dirty.mark(x, y);
     }
